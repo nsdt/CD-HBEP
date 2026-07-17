@@ -1,5 +1,7 @@
 # Certification-Driven Hermite Beam-Energy Projection
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21405491.svg)](https://doi.org/10.5281/zenodo.21405491)
+
 Certification-Driven Hermite Beam-Energy Projection (CD-HBEP) is a value-only method for shape-controlled cubic Hermite interpolation. It begins with the natural-cubic beam-energy minimizer and activates finite local slope bounds only when exact interval tests detect a specified geometric departure.
 
 **[Open the browser app](https://nsdt.github.io/CD-HBEP/)**
@@ -65,7 +67,7 @@ The manuscript source, supplied reference PDFs, provenance archives, and journal
 
 ## Citation
 
-Citation metadata are provided in [`CITATION.cff`](CITATION.cff). GitHub releases can be archived by Zenodo after the repository is connected to Zenodo; the resulting DOI should be cited for the exact software version used in a study.
+Citation metadata are provided in [`CITATION.cff`](CITATION.cff). Release `v0.1.0`, which accompanies the submitted manuscript, is archived on Zenodo under the version-specific DOI [10.5281/zenodo.21405492](https://doi.org/10.5281/zenodo.21405492). Cite this version-specific DOI when reproducing the reported results. The badge at the top of this page refers to the concept DOI, which represents all archived releases.
 
 The accompanying article is titled *A Certification-Driven Beam-Energy Projection Algorithm for Shape-Controlled Cubic Hermite Interpolation*. Its journal citation will be added after publication.
 
