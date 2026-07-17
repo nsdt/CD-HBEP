@@ -10,6 +10,7 @@ authors:
 repository-code: "https://github.com/nsdt/CD-HBEP"
 url: "https://nsdt.github.io/CD-HBEP/"
 version: 0.1.0
+doi: 10.5281/zenodo.21405492
 date-released: 2026-07-17
 license: MIT
 keywords:
