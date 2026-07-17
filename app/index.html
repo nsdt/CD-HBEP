@@ -1,0 +1,3428 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CD-HBEP: Shape-Controlled Cubic Hermite Interpolation</title>
+  <style>
+    :root {
+      --bg: #f6f7fb;
+      --panel: #ffffff;
+      --ink: #1f2937;
+      --muted: #667085;
+      --line: #d8dde8;
+      --accent: #2563eb;
+      --danger: #b42318;
+      --ok: #027a48;
+      --shadow: 0 8px 24px rgba(16,24,40,0.08);
+      --radius: 14px;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans JP", "Hiragino Sans", "Yu Gothic", Meiryo, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: var(--sans);
+      line-height: 1.45;
+    }
+    header {
+      padding: 18px 22px 8px;
+    }
+    h1 { font-size: 22px; margin: 0 0 4px; }
+    .subtitle { color: var(--muted); font-size: 13px; }
+    .layout {
+      display: grid;
+      grid-template-columns: 395px minmax(680px, 1fr);
+      gap: 14px;
+      padding: 12px 16px 18px;
+    }
+    @media (max-width: 1100px) { .layout { grid-template-columns: 1fr; } }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+      border-radius: var(--radius);
+      padding: 14px;
+    }
+    .controls {
+      max-height: calc(100vh - 105px);
+      overflow: auto;
+      position: sticky;
+      top: 10px;
+    }
+    @media (max-width: 1100px) { .controls { max-height: none; position: static; } }
+    details {
+      border: 1px solid #e3e8f2;
+      border-radius: 12px;
+      margin: 10px 0;
+      background: #fbfcff;
+    }
+    details[open] { background: #fff; }
+    summary {
+      cursor: pointer;
+      padding: 9px 11px;
+      font-weight: 700;
+      color: #24304a;
+      user-select: none;
+    }
+    .details-body { padding: 0 11px 11px; }
+    label { display: block; font-size: 12px; color: #344054; margin: 8px 0 4px; }
+    input[type="range"] { width: 100%; }
+    textarea {
+      width: 100%;
+      min-height: 132px;
+      font-family: var(--mono);
+      font-size: 12px;
+      padding: 9px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      resize: vertical;
+    }
+    select, input[type="number"], input[type="text"] {
+      width: 100%;
+      padding: 7px 8px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: #fff;
+      color: var(--ink);
+    }
+    .row { display: grid; grid-template-columns: 1fr 88px; gap: 8px; align-items: center; }
+    .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+    .mini { font-size: 11px; color: var(--muted); }
+    .checkrow {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 6px 0;
+      font-size: 13px;
+    }
+    .checkrow input { transform: translateY(1px); }
+    .button-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 9px 0; }
+    button {
+      border: 1px solid #cfd7e6;
+      background: #fff;
+      color: #1d2939;
+      padding: 7px 10px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 12px;
+    }
+    button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+    button:hover { filter: brightness(0.98); }
+    canvas {
+      width: 100%;
+      height: 560px;
+      display: block;
+      border-radius: 12px;
+      background: #fff;
+      border: 1px solid var(--line);
+    }
+    .topbar {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .legend { display: flex; flex-wrap: wrap; gap: 7px 12px; font-size: 12px; }
+    .legend-item { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+    .swatch { width: 18px; height: 3px; display: inline-block; border-radius: 4px; }
+    .data-dot { width: 9px; height: 9px; border: 2px solid #111827; border-radius: 50%; background: #fff; display: inline-block; }
+    .grid2 { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 14px; margin-top: 14px; }
+    @media (max-width: 1100px) { .grid2 { grid-template-columns: 1fr; } }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th, td { border-bottom: 1px solid #eef2f7; padding: 6px 5px; text-align: right; vertical-align: top; }
+    th:first-child, td:first-child { text-align: left; }
+    th { color: #475467; font-weight: 700; background: #f8fafc; position: sticky; top: 0; }
+    .scrollbox { max-height: 270px; overflow: auto; border: 1px solid #eef2f7; border-radius: 10px; }
+    pre {
+      white-space: pre-wrap;
+      font-family: var(--mono);
+      font-size: 11px;
+      background: #f8fafc;
+      border: 1px solid #eef2f7;
+      padding: 10px;
+      border-radius: 10px;
+      max-height: 230px;
+      overflow: auto;
+    }
+    .bars { display: grid; gap: 5px; }
+    .bar-row { display: grid; grid-template-columns: 58px 1fr 54px; gap: 8px; align-items: center; font-size: 11px; }
+    .bar-shell { height: 10px; background: #eef2f7; border-radius: 999px; overflow: hidden; border: 1px solid #d8dde8; }
+    .bar-fill { height: 100%; background: #2563eb; }
+    .status { font-size: 12px; margin-top: 8px; color: var(--muted); }
+    .warn { color: var(--danger); font-weight: 700; }
+    .ok { color: var(--ok); font-weight: 700; }
+    .pill { display:inline-block; padding:1px 6px; border-radius:999px; border:1px solid #d0d5dd; font-size:10px; color:#475467; background:#fff; }
+    .formula {
+      font-family: var(--mono);
+      font-size: 11px;
+      background: #f9fafb;
+      border: 1px solid #eef2f7;
+      border-radius: 10px;
+      padding: 8px;
+      margin: 7px 0;
+      overflow-x: auto;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1 id="appTitle">CD-HBEP interpolation comparison application</h1>
+    <div class="subtitle" id="appSubtitle">Compare NC-spline, Makima, PCHIP, HF-spline, DEH-CM, HG-MDO, and CD-HBEP on the manuscript test cases.</div>
+  </header>
+
+  <div class="layout">
+    <aside class="panel controls">
+      <details open>
+        <summary id="langSummary">Language</summary>
+        <div class="details-body">
+          <label id="langLabel">Interface language</label>
+          <select id="languageSelect">
+            <option value="en" selected>English</option>
+            <option value="ja">日本語</option>
+          </select>
+        </div>
+      </details>
+
+      <details open>
+        <summary id="dataSummary">Data</summary>
+        <div class="details-body">
+          <label id="dataTextLabel">Data points: one <code>x,y</code> or <code>x y</code> pair per line</label>
+          <textarea id="dataText"></textarea>
+          <div class="button-row">
+            <button class="primary" id="applyDataBtn">Apply data</button>
+            <button id="exampleSmoothBtn">Surge</button>
+            <button id="exampleMonoBtn">Peak</button>
+            <button id="exampleOscBtn">Hump</button>
+            <button id="exampleTurnBtn">Arc</button>
+            <button id="exampleWiggleBtn">Oscillatory</button>
+            <button id="examplePlateauBtn">Turn</button>
+            <button id="exampleAkimaDataBtn">Wiggle</button>
+            <button id="exampleDoughertyBtn">Plateau</button>
+            <button id="addPointBtn">Add point</button>
+          </div>
+          <div class="mini" id="knownDataLabel" style="margin-top:8px;">Continuous reference functions. The exact curve is independent of the interpolation knots.</div>
+          <div class="row"><label id="knownNLabel">Interpolation data points N</label><select id="knownN"><option>10</option><option selected>30</option><option>60</option><option>100</option><option>200</option><option>400</option><option>800</option></select></div>
+          <div class="row"><label id="knownSpacingLabel">Knot spacing</label><select id="knownSpacing"><option id="knownUniformOption" value="uniform" selected>Uniform</option><option id="knownNonuniformOption" value="nonuniform">Nonuniform</option></select></div>
+          <div class="button-row">
+            <button id="knownSmoothWaveBtn">f1 Smooth wave</button>
+            <button id="knownSmoothArcBtn">f2 Lifted arc</button>
+            <button id="knownLocalizedPeakBtn">f3 Localized peak</button>
+            <button id="knownSmoothPlateausBtn">f4 Smooth plateaus</button>
+            <button id="knownMonotoneSigmoidBtn">f5 Monotone sigmoid</button>
+            <button id="knownBoundaryLayerBtn">f6 Boundary layer</button>
+          </div>
+          <div class="mini" id="dataHint">Drag points on the graph. Double-click a point to remove it.</div>
+        </div>
+      </details>
+
+      <details open>
+        <summary id="methodsSummary">Methods to show</summary>
+        <div class="details-body" id="methodToggles"></div>
+      </details>
+
+      <details open>
+        <summary id="displaySummary">Display and evaluation</summary>
+        <div class="details-body">
+          <div class="row"><label id="evalSamplesLabel">Curve-drawing samples</label><input type="number" id="evalSamples" min="120" max="3000" step="20" value="900"></div>
+          <div class="row"><label id="lineWidthLabel">Plot line width</label><input type="number" id="lineWidth" min="1" max="5" step="0.5" value="2"></div>
+          <div class="checkrow"><input type="checkbox" id="showGrid" checked><span id="showGridLabel">Show grid</span></div>
+          <div class="checkrow"><input type="checkbox" id="showPoints" checked><span id="showPointsLabel">Show data points</span></div>
+          <div class="checkrow"><input type="checkbox" id="showEnvelope" checked><span id="showEnvelopeLabel">Show interval endpoint envelopes</span></div>
+          <div class="button-row"><button id="resetZoomBtn">Reset zoom</button></div>
+          <div class="mini" id="zoomHint">Drag an empty region of the plot to zoom in.</div>
+        </div>
+      </details>
+
+      <details>
+        <summary id="thesisSummary">Thesis-style rod FEM interpolation</summary>
+        <div class="details-body">
+          <div class="formula">rod stiffness + force interpolation<br>(Kii - ρ A Ksi) ui = (ρ A Kss - Kis) us</div>
+          <div class="row"><label>ρ: force interpolation activation</label><input type="number" id="thesisRhoVal" min="0" max="1" step="0.01"></div>
+          <input type="range" id="thesisRho" min="0" max="1" step="0.01" value="1">
+          <div class="row"><label id="thesisSubLabel">Internal subdivisions per interval</label><input type="number" id="thesisSub" min="2" max="80" step="1" value="16"></div>
+          <label class="forceLabel">Force interpolation A</label>
+          <select id="thesisForce">
+            <option value="linear" selected>linear</option>
+            <option value="nearest">nearest</option>
+            <option value="cubic">cubic Lagrange</option>
+            <option value="zero">zero</option>
+          </select>
+          <div class="checkrow"><input type="checkbox" id="thesisGhost" checked><span id="thesisGhostLabel">Use symmetric ghost nodes from the thesis method</span></div>
+        </div>
+      </details>
+
+      <details open>
+        <summary id="spSummary">CD-HBEP (core formulation)</summary>
+        <div class="details-body">
+          <div class="formula">Hermite beam: the input contains only (x,y), and the slopes θ are computed internally.<br>
+          CD-HBEP projects the unconstrained Hermite beam slope θB onto a finite feasible set. Exact interval certification activates the bounds. Bezier control values define the envelope constraints. A reverse-motion amount test activates the sharp Hermite slope box, with a wider automatic threshold for isolated shallow reversals.<br>
+          min 1/2(θ-θB)<sup>T</sup>H<sub>B</sub>(θ-θB), θ∈F<sub>A</sub>. The feasible slope box F<sub>A</sub> contains the activated bounds.</div>
+
+          <div class="mini">CD-HBEP applies the same twelve fixed activation constants to every data set and requires no case-specific or user tuning. The controls below expose those constants for inspection and reproducibility; the default values are the manuscript settings.</div>
+
+          <details>
+            <summary id="spFixedSummary">Fixed manuscript activation constants / guards</summary>
+            <div class="details-body">
+              <div class="checkrow"><input type="checkbox" id="spOver" checked><span id="spOverLabel">Envelope guard: Bezier endpoint-band bounds</span></div>
+              <div class="checkrow"><input type="checkbox" id="spReverseGuard" checked><span id="spReverseGuardLabel">Reverse-motion guard: sharp slope-box bounds</span></div>
+              <div class="checkrow"><input type="checkbox" id="spChordSide" checked><span id="spChordSideLabel">Chord-side guard for locally convex/concave runs</span></div>
+              <div class="mini" id="spFixedNote">The manuscript treats the guards and the twelve empirical activation constants below as fixed parts of CD-HBEP. The values remain editable here for inspection and reproducibility. The guard switches support debugging and ablation checks.</div>
+              <div class="row"><label id="spBaseBandLabel">base-band fraction ω_band</label><input type="number" id="spBaseBandFraction" min="0" max="0.05" step="0.0001" value="0.0075"></div>
+              <div class="row"><label id="spFlatRangeLabel">flat-interval range fraction ω_flat</label><input type="number" id="spFlatRangeFraction" min="0" max="0.5" step="0.005" value="0.05"></div>
+              <div class="row"><label id="spIsolatedBandLabel">isolated-band multiplier μ_iso</label><input type="number" id="spIsolatedBandMultiplier" min="0" max="10" step="0.1" value="2.5"></div>
+              <div class="row"><label id="spIsolatedScoreLabel">isolated-score offset ω_iso^0</label><input type="number" id="spIsolatedScoreOffset" min="0" max="1" step="0.01" value="0.35"></div>
+              <div class="row"><label id="spEnvelopeLocalLabel">envelope local-amplitude fraction ω_env^loc</label><input type="number" id="spEnvelopeLocalFraction" min="0" max="1" step="0.005" value="0.02"></div>
+              <div class="row"><label id="spEnvelopeRangeLabel">envelope value-range fraction ω_env^rng</label><input type="number" id="spEnvelopeRangeFraction" min="0" max="0.1" step="0.0005" value="0.002"></div>
+              <div class="row"><label id="spEnvelopeIsolationLabel">envelope isolated-reversal gain μ_env^iso</label><input type="number" id="spEnvelopeIsolationGain" min="0" max="10" step="0.05" value="1.25"></div>
+              <div class="row"><label id="spHandleBandLabel">Bezier-handle band multiplier μ_handle</label><input type="number" id="spHandleBandMultiplier" min="0" max="10" step="0.1" value="1.5"></div>
+              <div class="row"><label id="spReverseLocalLabel">reverse local-amplitude fraction ω_rev^loc</label><input type="number" id="spReverseLocalFraction" min="0" max="1" step="0.005" value="0.08"></div>
+              <div class="row"><label id="spReverseIsolationLabel">reverse isolated-reversal gain μ_rev^iso</label><input type="number" id="spReverseIsolationGain" min="0" max="10" step="0.1" value="2.0"></div>
+              <div class="row"><label id="spSideLocalLabel">chord-side local-amplitude fraction ω_side^loc</label><input type="number" id="spSideLocalFraction" min="0" max="1" step="0.01" value="0.20"></div>
+              <div class="row"><label id="spSideRangeLabel">chord-side value-range fraction ω_side^rng</label><input type="number" id="spSideRangeFraction" min="0" max="0.2" step="0.001" value="0.07"></div>
+              <div class="mini">The chord-side guard uses the available adjacent secant-slope differences only when their nonzero signs agree. A common factor enlarges all secondary slacks when necessary to preserve feasibility with the primary envelope and monotonicity bounds. Its analytical upper bound is max{1, 1/(3ω_side^loc)}; the default ω_side^loc = 0.20 gives 5/3.</div>
+              <div class="mini">No full curvature-sign constraint, no collocation envelope constraint, no hard chord cap, and no local slope prior are used by default.</div>
+            </div>
+          </details>
+
+          <div class="checkrow"><input type="checkbox" id="showSpBounds" checked><span id="showSpBoundsLabel">Show automatic slopes θ, beam slopes θB, and constraint status</span></div>
+        </div>
+      </details>
+
+      <details>
+        <summary id="benchSummary">Benchmarks</summary>
+        <div class="details-body">
+          <div class="mini" id="benchIntro">The default random and timing settings reproduce the manuscript conditions. Large runs can keep the browser busy for several seconds.</div>
+          <div class="button-row">
+            <button id="benchAblationBtn">Ablation</button>
+            <button id="benchExamplesBtn">8-case metrics</button>
+            <button id="benchRandomBtn">Random benchmark</button>
+            <button id="benchTimingBtn">Timing</button>
+          </div>
+          <div class="row"><label id="benchCasesLabel">Random cases</label><input type="number" id="benchCases" min="8" max="10000" step="8" value="2000"></div>
+          <div class="row"><label id="benchRandomSeedLabel">Random seed</label><input type="number" id="benchRandomSeed" min="0" max="4294967295" step="1" value="123456"></div>
+          <div class="row"><label id="benchNMinLabel">Random minimum N</label><input type="number" id="benchNMin" min="8" max="100000" step="1" value="8"></div>
+          <div class="row"><label id="benchNMaxLabel">Random maximum N</label><input type="number" id="benchNMax" min="8" max="100000" step="1" value="20"></div>
+          <div class="row"><label id="benchMixNMinLabel">Mixed-class minimum N</label><input type="number" id="benchMixNMin" min="8" max="100000" step="1" value="18"></div>
+          <div class="row"><label id="benchMixNMaxLabel">Mixed-class maximum N</label><input type="number" id="benchMixNMax" min="8" max="100000" step="1" value="36"></div>
+          <div class="row"><label id="benchTimingSeedLabel">Timing seed</label><input type="number" id="benchTimingSeed" min="0" max="4294967295" step="1" value="246810"></div>
+          <div class="row"><label id="benchTimingRepeatsLabel">Measured timing repeats</label><input type="number" id="benchTimingRepeats" min="1" max="20" step="1" value="5"></div>
+          <div class="scrollbox" style="max-height:360px;margin-top:8px;"><div id="benchmarkOutput" class="mini">No benchmark has been run yet.</div></div>
+        </div>
+      </details>
+    </aside>
+
+    <main>
+      <section class="panel">
+        <div class="topbar">
+          <div class="legend" id="legend"></div>
+          <div class="mini" id="dragHint">Drag points to edit the data</div>
+        </div>
+        <canvas id="plot" width="1200" height="640"></canvas>
+        <div class="status" id="status"></div>
+      </section>
+
+      <section class="grid2">
+        <div class="panel">
+          <h2 id="metricsTitle" style="font-size:16px;margin:0 0 8px;">Quantitative comparison</h2>
+          <div class="scrollbox"><table id="metricsTable"></table></div>
+          <div class="mini" id="metricsHint" style="margin-top:8px;">The table uses the six dimensionless manuscript diagnostics. Smaller values indicate less of the measured behavior, not necessarily greater accuracy.</div>
+        </div>
+        <div class="panel">
+          <h2 id="autoTitle" style="font-size:16px;margin:0 0 8px;">Computed CD-HBEP state</h2>
+          <div id="autoParams"></div>
+        </div>
+      </section>
+
+      <section class="panel" style="margin-top:14px;">
+        <h2 id="notesTitle" style="font-size:16px;margin:0 0 8px;">Notes</h2>
+        <div class="mini">
+          <b>Test cases.</b> The manuscript presets are <i>Surge</i> (classical Akima data), <i>Peak</i> (titanium equation-of-state data), <i>Hump</i> (Manni numerical example), <i>Arc</i> (Kvasov semicircle data), and four synthetic stress cases: <i>Oscillatory</i>, <i>Turn</i>, <i>Wiggle</i>, and <i>Plateau</i>.<br>
+          <b>Hyman-filtered spline</b> uses not-a-knot cubic-spline derivative estimates followed by the Hyman 1983 Eq. (2.3) monotonicity filter. At changing-monotonicity knots the filtered derivative is set to zero.<br>
+          <b>HG-MDO</b> denotes the Han–Guo minimal derivative oscillation method. It determines all cubic Hermite slopes by minimizing the integrated squared difference between the derivative of the interpolant and the derivative of the piecewise-linear interpolant. It solves Eq. (3) of Han and Guo (2018) on uniform or nonuniform knots. The method has no shape constraint, so overshoot or reverse motion can remain after optimization.<br>
+          <b>DEH cubic monotone (NC init.)</b> uses natural-cubic-spline derivative estimates as the initial derivatives and applies the Dougherty–Edelman–Hyman cubic monotonicity constrainer. This is a representative value-only implementation of the cubic monotone part of the DEH paper.<br>
+          <b>Thesis-style rod FEM interpolation</b> is a historical reconstruction model based on the graduation thesis. The input values are fixed displacements, and unknown internal displacements are computed from a rod stiffness system with force interpolation. This optional implementation illustrates the design lineage of CD-HBEP and is not one of the manuscript's principal comparison methods.<br>
+          <b>CD-HBEP</b> fixes the data values and computes Hermite slopes internally. It projects the Hermite beam slope θB onto the finite bounds activated after exact interval certification detects a visible envelope escape, reverse motion, or one-sided chord excursion.
+        </div>
+      </section>
+    </main>
+  </div>
+
+<script>
+'use strict';
+
+const COLORS = {
+  linear: '#111827',
+  cubic: '#0072B2',
+  hanGuo: '#8C564B',
+  pchip: '#B2182B',
+  hyman: '#009E73',
+  dehCubic: '#7B2CBF',
+  akima: '#D55E00',
+  makima: '#E69F00',
+  thesisFEM: '#dc2626',
+  beamSP: '#000000',
+  data: '#111827'
+};
+const EXACT_REFERENCE_STYLE = Object.freeze({color:'#4B5563', dash:[7,4], width:2.6});
+
+const METHOD_META = [
+  {key:'linear', labelEn:'Linear', labelJa:'線形補間', label:'Linear', color: COLORS.linear, checked:false},
+  {key:'cubic', labelEn:'Natural cubic spline', labelJa:'自然 cubic spline', label:'Natural cubic spline', color: COLORS.cubic, checked:true},
+  {key:'akima', labelEn:'Akima', labelJa:'Akima', label:'Akima', color: COLORS.akima, checked:false},
+  {key:'makima', labelEn:'Modified Akima / makima', labelJa:'Modified Akima / makima', label:'Modified Akima / makima', color: COLORS.makima, checked:true},
+  {key:'pchip', labelEn:'PCHIP', labelJa:'PCHIP', label:'PCHIP', color: COLORS.pchip, checked:true},
+  {key:'hyman', labelEn:'Hyman-filtered spline', labelJa:'Hyman-filtered spline', label:'Hyman-filtered spline', color: COLORS.hyman, checked:false},
+  {key:'dehCubic', labelEn:'DEH cubic monotone (NC init.)', labelJa:'DEH cubic monotone (NC init.)', label:'DEH cubic monotone (NC init.)', color: COLORS.dehCubic, checked:false},
+  {key:'hanGuo', labelEn:'HG-MDO', labelJa:'HG-MDO', label:'HG-MDO', color: COLORS.hanGuo, checked:false},
+  {key:'thesisFEM', labelEn:'Thesis-style rod FEM interpolation', labelJa:'Thesis-style rod FEM interpolation', label:'Thesis-style rod FEM interpolation', color: COLORS.thesisFEM, checked:false},
+  {key:'beamSP', labelEn:'CD-HBEP', labelJa:'CD-HBEP', label:'CD-HBEP', color: COLORS.beamSP, checked:true}
+];
+
+const MANUSCRIPT_METHOD_ORDER = Object.freeze(['cubic','makima','pchip','hyman','dehCubic','hanGuo','beamSP']);
+function manuscriptMethodOrder(){ return Array.from(MANUSCRIPT_METHOD_ORDER); }
+function manuscriptMethodPairs(){
+  const labels={cubic:'NC-spline',makima:'Makima',pchip:'PCHIP',hyman:'HF-spline',dehCubic:'DEH-CM',hanGuo:'HG-MDO',beamSP:'CD-HBEP'};
+  return manuscriptMethodOrder().map(key=>[labels[key],points=>computeMethod(key,points)]);
+}
+
+const DEFAULT_DATA = `0, 0
+1, 0.8
+2, 0.2
+3, 1.2
+4, 1.05
+5, 1.75
+6, 1.62
+7, 2.1`;
+
+const EXAMPLES = {
+  // Manuscript test cases, in the same order as Fig. 1--Fig. 9.
+  // The internal keys are retained for UI compatibility.
+  smooth: `0, 10
+2, 10
+3, 10
+5, 10
+6, 10
+8, 10
+9, 10.5
+11, 15
+12, 50
+14, 60
+15, 85`,
+  mono: `595, 0.644
+635, 0.652
+695, 0.644
+795, 0.694
+855, 0.907
+875, 1.336
+895, 2.169
+915, 1.598
+935, 0.916
+985, 0.607
+1035, 0.603
+1075, 0.608`,
+  osc: `0.5, 5
+1.5, 10
+2, 25
+2.5, 35
+3, 30
+4, 21
+6, 20
+8, 20
+9, 10
+10, 5`,
+  turn: `0, 2
+0.0489434837048, 1.69098300563
+0.190983005625, 1.41221474771
+0.412214747708, 1.19098300563
+0.690983005625, 1.0489434837
+1, 1
+1.30901699437, 1.0489434837
+1.58778525229, 1.19098300563
+1.80901699437, 1.41221474771
+1.9510565163, 1.69098300563
+2, 2`,
+  wiggle: `0, 0
+0.8, 1.8
+1.7, -0.45
+2.6, 2.35
+3.4, -0.1
+4.3, 1.55
+5.2, 0.15
+6.0, 1.05`,
+  plateau: `0, 0
+1, 0.8
+2, 0.2
+3, 1.2
+3.5, 2.1
+4, 0
+5, 2.1`,
+  akima1970: `0, 0
+1, 0.8
+2, 0.2
+3, 1.2
+4, 1
+5, 1.75
+6, 1.5
+6.5, 0
+7, 0`,
+  dehTitanium: `0, 0
+1, 0.55
+2, 1.15
+3, 1.18
+4, 1.16
+5, 0.35
+6, 0.42
+7, 1.28`
+};
+
+let state = {
+  points: [],
+  curves: {},
+  knownBenchmarkKey: null,
+  lastAuto: {},
+  draggingIndex: -1,
+  selectingZoom: false,
+  selectionStart: null,
+  selectionEnd: null,
+  zoom: null,
+  canvasTransform: null
+};
+
+function $(id){ return document.getElementById(id); }
+function clamp(x,a,b){ return Math.max(a, Math.min(b, x)); }
+function fmt(x, digits=4){
+  if (!Number.isFinite(x)) return '—';
+  const ax = Math.abs(x);
+  if (ax !== 0 && (ax < 1e-3 || ax > 1e4)) return x.toExponential(2);
+  return x.toFixed(digits).replace(/\.0+$/,'').replace(/(\.\d*?)0+$/,'$1');
+}
+
+function parseData(text){
+  const points = [];
+  const lines = text.split(/\n+/);
+  for (const raw of lines){
+    const line = raw.trim();
+    if (!line || line.startsWith('#')) continue;
+    const parts = line.split(/[ ,\t;]+/).filter(Boolean);
+    if (parts.length < 2) continue;
+    const x = Number(parts[0]);
+    const y = Number(parts[1]);
+    if (Number.isFinite(x) && Number.isFinite(y)) points.push({x,y});
+  }
+  points.sort((a,b)=>a.x-b.x);
+  const out = [];
+  for (const p of points){
+    if (out.length && out[out.length-1].x === p.x){
+      out[out.length-1].y = p.y;
+    } else out.push(p);
+  }
+  return out;
+}
+function pointsToText(points){ return points.map(p => `${fmt(p.x,6)}, ${fmt(p.y,6)}`).join('\n'); }
+
+function syncRange(rangeId, numberId){
+  const r = $(rangeId), n = $(numberId);
+  if (!r || !n) return;
+  const copyR = () => { n.value = r.value; recompute(); };
+  const copyN = () => { r.value = clamp(Number(n.value), Number(r.min), Number(r.max)); n.value = r.value; recompute(); };
+  r.addEventListener('input', copyR);
+  n.addEventListener('change', copyN);
+  n.value = r.value;
+}
+
+
+let currentLang = 'en';
+function tr(en, ja){ return currentLang === 'ja' ? ja : en; }
+function methodLabel(m){ return currentLang === 'ja' ? (m.labelJa || m.label) : (m.labelEn || m.label); }
+function methodHelp(key){
+  const h={
+    linear:'Piecewise linear interpolation.',
+    cubic:'Natural cubic spline / NC-spline.',
+    hanGuo:'HG-MDO: Han–Guo minimal derivative oscillation cubic Hermite interpolation. Its global objective does not impose a shape constraint.',
+    pchip:'Piecewise Cubic Hermite Interpolating Polynomial.',
+    hyman:'Hyman 1983 filtered cubic Hermite spline.',
+    dehCubic:'Dougherty–Edelman–Hyman cubic monotonicity constrainer with natural-cubic initial slopes.',
+    akima:'Akima 1970 local cubic Hermite interpolation.',
+    makima:'Modified Akima / makima slope weighting.',
+    thesisFEM:'Historical rod FEM interpolation based on the thesis displacement-reconstruction model.',
+    beamSP:'Certification-Driven Hermite Beam-Energy Projection.'
+  };
+  return h[key] || '';
+}
+function setText(id, en, ja){ const el=$(id); if (el) el.textContent = tr(en, ja); }
+function setHTML(id, en, ja){ const el=$(id); if (el) el.innerHTML = tr(en, ja); }
+function updateDataHint(){
+  if(state.knownBenchmarkKey){
+    setText('dataHint',
+      'The exact function is drawn independently. N and the knot spacing determine only the data supplied to the interpolants.',
+      '真の参照曲線を表示しています。標本点は補間計算の入力として保持されています。');
+    setText('dragHint','Exact reference curve and interpolation curves','真の参照曲線と補間曲線');
+  } else {
+    setText('dataHint',
+      'Drag points on the graph. Double-click a point to remove it.',
+      'グラフ上の点はドラッグできます。点をダブルクリックすると削除します。');
+    setText('dragHint','Drag points to edit the data','点をドラッグできます');
+  }
+}
+function applyLanguage(lang){
+  currentLang = lang || 'en';
+  document.documentElement.lang = currentLang;
+  document.title = tr('CD-HBEP: Shape-Controlled Cubic Hermite Interpolation', 'CD-HBEP：形状制御付き3次Hermite補間');
+  setText('appTitle','CD-HBEP interpolation comparison application','CD-HBEP 補間比較アプリケーション');
+  setText('appSubtitle','Compare NC-spline, Makima, PCHIP, HF-spline, DEH-CM, HG-MDO, and CD-HBEP on the manuscript test cases.','NC-spline、Makima、PCHIP、HF-spline、DEH-CM、HG-MDO、CD-HBEPを同じデータで比較します。');
+  setText('langSummary','Language','言語'); setText('langLabel','Interface language','表示言語');
+  setText('dataSummary','Data','データ');
+  setHTML('dataTextLabel','Data points: one <code>x,y</code> or <code>x y</code> pair per line','データ点: 1行に <code>x,y</code> または <code>x y</code>');
+  setText('applyDataBtn','Apply data','データを反映'); setText('exampleSmoothBtn','Surge','Surge例'); setText('exampleMonoBtn','Peak','Peak例'); setText('exampleOscBtn','Hump','Hump例'); setText('exampleTurnBtn','Arc','Arc例'); setText('exampleWiggleBtn','Oscillatory','Oscillatory例'); setText('examplePlateauBtn','Turn','Turn例'); setText('exampleAkimaDataBtn','Wiggle','Wiggle例'); setText('exampleDoughertyBtn','Plateau','Plateau例'); setText('addPointBtn','Add point','点を追加');
+  setText('knownDataLabel','Continuous reference functions. The exact curve is independent of the interpolation knots.','連続参照関数。真の曲線は補間節点に依存しません。'); setText('knownNLabel','Interpolation data points N','補間データ点数 N'); setText('knownSpacingLabel','Knot spacing','節点配置'); setText('knownUniformOption','Uniform','一様'); setText('knownNonuniformOption','Nonuniform','非一様');
+  setText('knownSmoothWaveBtn','f1 Smooth wave','f1 Smooth wave'); setText('knownSmoothArcBtn','f2 Lifted arc','f2 Lifted arc'); setText('knownLocalizedPeakBtn','f3 Localized peak','f3 Localized peak'); setText('knownSmoothPlateausBtn','f4 Smooth plateaus','f4 Smooth plateaus'); setText('knownMonotoneSigmoidBtn','f5 Monotone sigmoid','f5 Monotone sigmoid'); setText('knownBoundaryLayerBtn','f6 Boundary layer','f6 Boundary layer');
+  setText('dataHint','Drag points on the graph. Double-click a point to remove it.','グラフ上の点はドラッグできます。点をダブルクリックすると削除します。');
+  setText('methodsSummary','Methods to show','表示する補間法'); setText('displaySummary','Display and evaluation','共通表示・評価');
+  setText('evalSamplesLabel','Curve-drawing samples','曲線描画サンプル数'); setText('lineWidthLabel','Plot line width','プロット線幅'); setText('showGridLabel','Show grid','グリッド表示'); setText('showPointsLabel','Show data points','データ点表示'); setText('showEnvelopeLabel','Show interval endpoint envelopes','各区間の端点範囲を薄く表示'); setText('resetZoomBtn','Reset zoom','ズームを解除'); setText('zoomHint','Drag an empty region of the plot to zoom. Double-click empty space or press Reset zoom to return to the full view.','プロット上の空白をドラッグして範囲選択すると拡大します。空白をダブルクリック、またはボタンで全体表示に戻ります。');
+  setText('thesisSummary','Thesis-style rod FEM interpolation','Thesis-style rod FEM interpolation'); setText('thesisSubLabel','Internal subdivisions per interval','区間あたり内部分割数'); setText('thesisGhostLabel','Use symmetric ghost nodes from the thesis method','卒論式の対称 ghost node を使う');
+  setText('spSummary','CD-HBEP (finite active-set formulation)','CD-HBEP（有限アクティブ制約定式化）'); setText('spOverLabel','Envelope constraints are activated by exact interval certification','envelope 制約は区間の厳密検査により自動適用'); setText('showSpBoundsLabel','Show automatic slopes θ, beam slopes θB, and active constraints','自動 slope θ・beam slope θB・active constraints を表示');
+  setText('spFixedSummary','Fixed manuscript activation constants / guards','論文で固定したactivation定数 / guard');
+  setText('spFixedNote','The manuscript treats the guards and the twelve empirical activation constants below as fixed parts of CD-HBEP. The values remain editable here for inspection and reproducibility. The guard switches support debugging and ablation checks.','論文ではguardと以下の12個の経験的activation定数をCD-HBEPの固定要素として扱います。確認と再現性のため、アプリでは値を変更できます。guardのスイッチはdebugとablation確認用です。');
+  setText('spBaseBandLabel','base-band fraction ω_band','base-band fraction ω_band'); setText('spFlatRangeLabel','flat-interval range fraction ω_flat','flat-interval range fraction ω_flat'); setText('spIsolatedBandLabel','isolated-band multiplier μ_iso','isolated-band multiplier μ_iso'); setText('spIsolatedScoreLabel','isolated-score offset ω_iso^0','isolated-score offset ω_iso^0');
+  setText('spEnvelopeLocalLabel','envelope local-amplitude fraction ω_env^loc','envelope local-amplitude fraction ω_env^loc'); setText('spEnvelopeRangeLabel','envelope value-range fraction ω_env^rng','envelope value-range fraction ω_env^rng'); setText('spEnvelopeIsolationLabel','envelope isolated-reversal gain μ_env^iso','envelope isolated-reversal gain μ_env^iso'); setText('spHandleBandLabel','Bezier-handle band multiplier μ_handle','Bezier-handle band multiplier μ_handle');
+  setText('spReverseLocalLabel','reverse local-amplitude fraction ω_rev^loc','reverse local-amplitude fraction ω_rev^loc'); setText('spReverseIsolationLabel','reverse isolated-reversal gain μ_rev^iso','reverse isolated-reversal gain μ_rev^iso'); setText('spSideLocalLabel','chord-side local-amplitude fraction ω_side^loc','chord-side local-amplitude fraction ω_side^loc'); setText('spSideRangeLabel','chord-side value-range fraction ω_side^rng','chord-side value-range fraction ω_side^rng');
+  setText('benchSummary','Benchmarks','ベンチマーク'); setText('benchIntro','The default random and timing settings reproduce the manuscript conditions. The full timing run can keep the browser busy for several minutes.','既定のrandomおよびtiming設定は論文と同じ条件です。完全なtiming計測ではブラウザが数分間処理を続けることがあります。'); setText('benchCasesLabel','Random cases','ランダムケース数'); setText('benchRandomSeedLabel','Random seed','random seed'); setText('benchNMinLabel','Base-class minimum N','base class最小N'); setText('benchNMaxLabel','Base-class maximum N','base class最大N'); setText('benchMixNMinLabel','Mixed-class minimum N','mix class最小N'); setText('benchMixNMaxLabel','Mixed-class maximum N','mix class最大N'); setText('benchTimingSeedLabel','Timing seed','timing seed'); setText('benchTimingRepeatsLabel','Measured timing repeats','timing計測反復数');
+  setText('dragHint','Drag points to edit the data','点をドラッグできます'); setText('metricsTitle','Quantitative comparison','定量比較'); setText('metricsHint','The table reports six dimensionless shape diagnostics. Smaller values have metric-specific meanings and do not necessarily imply greater accuracy.','6つの無次元shape診断指標を表示します。小さい値の意味は指標ごとに異なり、必ずしも精度が高いことを意味しません。'); setText('autoTitle','Computed CD-HBEP state','CD-HBEP の計算状態'); setText('notesTitle','Notes','メモ');
+  for (const m of METHOD_META){ const span=document.querySelector(`#label_${m.key}`); if (span){ span.title=methodHelp(m.key); span.innerHTML = `<span class="swatch" style="background:${m.color}"></span> ${methodLabel(m)}`; } }
+  updateDataHint(); renderLegend(); renderMetrics(); renderAutoParams(); applyTooltips(); drawPlot();
+}
+
+function initUI(){
+  $('dataText').value = DEFAULT_DATA;
+  state.points = parseData(DEFAULT_DATA);
+  $('languageSelect').addEventListener('change', e => applyLanguage(e.target.value));
+  const toggles = $('methodToggles');
+  toggles.innerHTML = '';
+  for (const m of METHOD_META){
+    const div = document.createElement('label');
+    div.className = 'checkrow';
+    div.innerHTML = `<input type="checkbox" id="show_${m.key}" ${m.checked?'checked':''}><span id="label_${m.key}" title="${methodHelp(m.key)}"><span class="swatch" style="background:${m.color}"></span> ${methodLabel(m)}</span>`;
+    toggles.appendChild(div);
+  }
+  $('applyDataBtn').addEventListener('click', () => {
+    const pts = parseData($('dataText').value);
+    if (pts.length >= 2){ state.points = pts; state.knownBenchmarkKey=null; $('showPoints').checked=true; state.zoom = null; recompute(); }
+  });
+  const rz=$('resetZoomBtn'); if (rz) rz.addEventListener('click', () => { state.zoom=null; state.selectingZoom=false; state.selectionStart=null; state.selectionEnd=null; drawPlot(); });
+  $('exampleSmoothBtn').addEventListener('click', () => setData(EXAMPLES.smooth));
+  $('exampleMonoBtn').addEventListener('click', () => setData(EXAMPLES.mono));
+  $('exampleOscBtn').addEventListener('click', () => setData(EXAMPLES.osc));
+  $('exampleTurnBtn').addEventListener('click', () => setData(EXAMPLES.turn));
+  $('exampleWiggleBtn').addEventListener('click', () => setData(EXAMPLES.wiggle));
+  $('examplePlateauBtn').addEventListener('click', () => setData(EXAMPLES.plateau));
+  const akimaBtn=$('exampleAkimaDataBtn'); if (akimaBtn) akimaBtn.addEventListener('click', () => setData(EXAMPLES.akima1970));
+  const dehBtn=$('exampleDoughertyBtn'); if (dehBtn) dehBtn.addEventListener('click', () => setData(EXAMPLES.dehTitanium));
+  const knownButtons={
+    knownSmoothWaveBtn:'smoothWave', knownSmoothArcBtn:'smoothArc',
+    knownLocalizedPeakBtn:'localizedPeak', knownSmoothPlateausBtn:'smoothPlateaus',
+    knownMonotoneSigmoidBtn:'monotoneSigmoid', knownBoundaryLayerBtn:'boundaryLayer'
+  };
+  for(const [id,key] of Object.entries(knownButtons)){
+    const button=$(id); if(button) button.addEventListener('click',()=>loadKnownBenchmarkData(key));
+  }
+  for(const id of ['knownN','knownSpacing']){
+    const control=$(id);
+    if(control) control.addEventListener('change',()=>{
+      if(state.knownBenchmarkKey) loadKnownBenchmarkData(state.knownBenchmarkKey);
+    });
+  }
+  $('addPointBtn').addEventListener('click', addPointAtEnd);
+  const ba=$('benchAblationBtn'); if (ba) ba.addEventListener('click', runAblationBenchmark);
+  const bex=$('benchExamplesBtn'); if (bex) bex.addEventListener('click', runExampleMetricsBenchmark);
+  const br=$('benchRandomBtn'); if (br) br.addEventListener('click', runRandomBenchmark);
+  const bti=$('benchTimingBtn'); if (bti) bti.addEventListener('click', runTimingBenchmark);
+  syncRange('thesisRho', 'thesisRhoVal');
+
+  const ids = [
+    'evalSamples','lineWidth','showGrid','showPoints','showEnvelope',
+    'thesisSub','thesisForce','thesisGhost',
+    'spOver','spReverseGuard','spChordSide','spBaseBandFraction','spFlatRangeFraction','spIsolatedBandMultiplier','spIsolatedScoreOffset','spEnvelopeLocalFraction','spEnvelopeRangeFraction','spEnvelopeIsolationGain','spHandleBandMultiplier','spReverseLocalFraction','spReverseIsolationGain','spSideLocalFraction','spSideRangeFraction','showSpBounds'
+  ];
+  for (const id of ids){ const el=$(id); if (el) el.addEventListener('input', recompute); }
+  for (const m of METHOD_META){ $('show_'+m.key).addEventListener('change', recompute); }
+  setupCanvasEvents();
+  applyLanguage('en');
+  recompute();
+}
+function setData(text, knownBenchmarkKey=null){
+  $('dataText').value = text;
+  state.points = parseData(text);
+  state.knownBenchmarkKey = knownBenchmarkKey;
+  const showPoints=$('showPoints'); if(showPoints) showPoints.checked=!knownBenchmarkKey;
+  state.zoom = null; state.selectingZoom=false; state.selectionStart=null; state.selectionEnd=null;
+  recompute();
+}
+function loadKnownBenchmarkData(key){
+  const n=Math.max(2,Math.floor(Number(getElValue('knownN',30))||30));
+  const spacing=getElValue('knownSpacing','uniform')==='nonuniform'?'nonuniform':'uniform';
+  setData(pointsToText(knownBenchmarkPoints(key,n,spacing)),key);
+}
+function addPointAtEnd(){
+  if (state.points.length < 2) return;
+  const pts = state.points;
+  const dx = pts[pts.length-1].x - pts[pts.length-2].x;
+  const x = pts[pts.length-1].x + (dx || 1);
+  const y = pts[pts.length-1].y;
+  pts.push({x,y});
+  state.knownBenchmarkKey=null;
+  const showPoints=$('showPoints'); if(showPoints) showPoints.checked=true;
+  $('dataText').value = pointsToText(pts);
+  recompute();
+}
+
+// ---------- Matrix utilities ----------
+function zeros(r,c){ return Array.from({length:r}, () => Array(c).fill(0)); }
+function vecZeros(n){ return Array(n).fill(0); }
+function matVec(A,x){
+  const y = Array(A.length).fill(0);
+  for(let i=0;i<A.length;i++){
+    let s=0; const row=A[i];
+    for(let j=0;j<x.length;j++) s += row[j]*x[j];
+    y[i]=s;
+  }
+  return y;
+}
+function matMul(A,B){
+  const r=A.length, k=A[0]?.length||0, c=B[0]?.length||0;
+  const C=zeros(r,c);
+  for(let i=0;i<r;i++){
+    for(let t=0;t<k;t++){
+      const ait=A[i][t]; if (Math.abs(ait)<1e-15) continue;
+      for(let j=0;j<c;j++) C[i][j] += ait*B[t][j];
+    }
+  }
+  return C;
+}
+function matSub(A,B){
+  const C=zeros(A.length, A[0].length);
+  for(let i=0;i<A.length;i++) for(let j=0;j<A[0].length;j++) C[i][j]=A[i][j]-B[i][j];
+  return C;
+}
+function matScale(A,s){
+  const C=zeros(A.length, A[0].length);
+  for(let i=0;i<A.length;i++) for(let j=0;j<A[0].length;j++) C[i][j]=s*A[i][j];
+  return C;
+}
+function getSubmatrix(A, rows, cols){
+  const M=zeros(rows.length, cols.length);
+  for(let i=0;i<rows.length;i++) for(let j=0;j<cols.length;j++) M[i][j]=A[rows[i]][cols[j]];
+  return M;
+}
+function getSubvector(v, idx){ return idx.map(i => v[i]); }
+function solveLinear(Ain, bin){
+  const n = Ain.length;
+  if (n === 0) return [];
+  const isMatrixB = Array.isArray(bin[0]);
+  const m = isMatrixB ? bin[0].length : 1;
+  const A = Ain.map(row => row.slice());
+  const B = isMatrixB ? bin.map(row => row.slice()) : bin.map(v => [v]);
+  for(let i=0;i<n;i++){
+    A[i][i] += 1e-12;
+  }
+  for(let k=0;k<n;k++){
+    let piv=k, max=Math.abs(A[k][k]);
+    for(let i=k+1;i<n;i++){
+      const val=Math.abs(A[i][k]);
+      if (val>max){ max=val; piv=i; }
+    }
+    if (max < 1e-14){
+      A[k][k] += 1e-8;
+      max = Math.abs(A[k][k]);
+    }
+    if (piv!==k){ [A[k],A[piv]]=[A[piv],A[k]]; [B[k],B[piv]]=[B[piv],B[k]]; }
+    const diag=A[k][k];
+    for(let j=k;j<n;j++) A[k][j] /= diag;
+    for(let j=0;j<m;j++) B[k][j] /= diag;
+    for(let i=0;i<n;i++){
+      if (i===k) continue;
+      const factor=A[i][k];
+      if (Math.abs(factor)<1e-18) continue;
+      for(let j=k;j<n;j++) A[i][j] -= factor*A[k][j];
+      for(let j=0;j<m;j++) B[i][j] -= factor*B[k][j];
+    }
+  }
+  return isMatrixB ? B : B.map(r=>r[0]);
+}
+
+// ---------- Classical interpolation ----------
+function findInterval(xs, x){
+  const n=xs.length;
+  if (x <= xs[0]) return 0;
+  if (x >= xs[n-1]) return n-2;
+  let lo=0, hi=n-1;
+  while(hi-lo>1){ const mid=(lo+hi)>>1; if (xs[mid] <= x) lo=mid; else hi=mid; }
+  return lo;
+}
+function linearEval(points, x){
+  const xs=points.map(p=>p.x), ys=points.map(p=>p.y);
+  const i=findInterval(xs,x);
+  const h=xs[i+1]-xs[i];
+  const t=h===0?0:(x-xs[i])/h;
+  return ys[i]*(1-t)+ys[i+1]*t;
+}
+function makeHermiteEvaluator(points, slopes){
+  const xs=points.map(p=>p.x), ys=points.map(p=>p.y), n=points.length;
+  return function(x){
+    const i=findInterval(xs,x);
+    const h=xs[i+1]-xs[i];
+    const t=h===0?0:(x-xs[i])/h;
+    const t2=t*t, t3=t2*t;
+    const H00=2*t3-3*t2+1;
+    const H10=t3-2*t2+t;
+    const H01=-2*t3+3*t2;
+    const H11=t3-t2;
+    return H00*ys[i] + h*H10*slopes[i] + H01*ys[i+1] + h*H11*slopes[i+1];
+  };
+}
+function makeNaturalCubic(points){
+  const n=points.length, xs=points.map(p=>p.x), ys=points.map(p=>p.y);
+  if (n===2) return {eval:x=>linearEval(points,x), slopes:[(ys[1]-ys[0])/(xs[1]-xs[0]), (ys[1]-ys[0])/(xs[1]-xs[0])]};
+  const h=[]; for(let i=0;i<n-1;i++) h.push(xs[i+1]-xs[i]);
+  const lower=Array(n-1).fill(0), diag=Array(n).fill(0), upper=Array(n-1).fill(0), rhs=vecZeros(n);
+  diag[0]=1; diag[n-1]=1;
+  for(let i=1;i<n-1;i++){
+    lower[i-1]=h[i-1];
+    diag[i]=2*(h[i-1]+h[i])+1e-12;
+    upper[i]=h[i];
+    rhs[i]=6*((ys[i+1]-ys[i])/h[i] - (ys[i]-ys[i-1])/h[i-1]);
+  }
+  const M=solveTridiagonalSystem(lower,diag,upper,rhs);
+  const slopes=[];
+  for(let i=0;i<n;i++){
+    if (i===0){ slopes[i]=(ys[1]-ys[0])/h[0] - h[0]*(2*M[0]+M[1])/6; }
+    else if (i===n-1){ slopes[i]=(ys[n-1]-ys[n-2])/h[n-2] + h[n-2]*(M[n-2]+2*M[n-1])/6; }
+    else {
+      slopes[i]=(ys[i+1]-ys[i])/h[i] - h[i]*(2*M[i]+M[i+1])/6;
+    }
+  }
+  return {eval:makeHermiteEvaluator(points, slopes), slopes, second:M};
+}
+function pchipSlopes(points){
+  const n=points.length, x=points.map(p=>p.x), y=points.map(p=>p.y);
+  const h=[], d=[];
+  for(let i=0;i<n-1;i++){ h[i]=x[i+1]-x[i]; d[i]=(y[i+1]-y[i])/h[i]; }
+  const m=Array(n).fill(0);
+  if (n===2){ m[0]=m[1]=d[0]; return m; }
+  for(let k=1;k<n-1;k++){
+    if (d[k-1]===0 || d[k]===0 || d[k-1]*d[k] < 0){ m[k]=0; }
+    else {
+      const w1=2*h[k]+h[k-1];
+      const w2=h[k]+2*h[k-1];
+      m[k]=(w1+w2)/(w1/d[k-1]+w2/d[k]);
+    }
+  }
+  function endpoint(h0,h1,d0,d1){
+    let m=((2*h0+h1)*d0 - h0*d1)/(h0+h1);
+    if (m*d0 <= 0) m=0;
+    else if (d0*d1 < 0 && Math.abs(m) > Math.abs(3*d0)) m=3*d0;
+    return m;
+  }
+  m[0]=endpoint(h[0],h[1],d[0],d[1]);
+  m[n-1]=endpoint(h[n-2],h[n-3],d[n-2],d[n-3]);
+  return m;
+}
+function makePchip(points){ const s=pchipSlopes(points); return {eval:makeHermiteEvaluator(points,s), slopes:s}; }
+
+// ---------- Han--Guo (2018) minimal derivative oscillation ----------
+// Equation (3) of the paper minimizes
+//   I_1 = integral (H'(x) - L'(x))^2 dx
+// over all nodal Hermite slopes.  Row normalization gives a strictly
+// diagonally dominant tridiagonal system for uniform or nonuniform knots.
+function hanGuoMinimalDerivativeOscillationSlopes(points){
+  const n=points.length, x=points.map(point=>point.x), y=points.map(point=>point.y);
+  const h=Array(n-1), delta=Array(n-1);
+  for(let i=0;i<n-1;i++){
+    h[i]=x[i+1]-x[i];
+    delta[i]=(y[i+1]-y[i])/h[i];
+  }
+  if(n===2) return [delta[0],delta[0]];
+  const lower=Array(n-1).fill(0), diag=Array(n).fill(4), upper=Array(n-1).fill(0), rhs=Array(n).fill(0);
+  upper[0]=-1;
+  rhs[0]=3*delta[0];
+  for(let i=1;i<n-1;i++){
+    const span=h[i-1]+h[i];
+    const mu=h[i-1]/span;
+    const lambda=h[i]/span;
+    lower[i-1]=-mu;
+    upper[i]=-lambda;
+    rhs[i]=3*(y[i+1]-y[i-1])/span;
+  }
+  lower[n-2]=-1;
+  rhs[n-1]=3*delta[n-2];
+  return solveTridiagonalSystem(lower,diag,upper,rhs);
+}
+function makeHanGuoMDO(points){
+  const slopes=hanGuoMinimalDerivativeOscillationSlopes(points);
+  return {eval:makeHermiteEvaluator(points,slopes),slopes};
+}
+
+// ---------- Hyman (1983) monotonicity filter ----------
+// Paper-faithful core implementation for the cubic Hermite case.
+// We first compute an accurate C2 spline slope estimate, using a not-a-knot
+// cubic spline when enough knots are available.  The nodal derivatives are then
+// projected by Hyman's Eq. (2.3), i.e. the de Boor--Swartz monotonicity range.
+// At a changing-monotonicity knot, Eq. (2.3) sets the derivative to zero.  This
+// strict version is the monotonicity-preserving baseline used here; it is not
+// the earlier relaxed extremum variant.
+function notAKnotCubicSlopes(points){
+  const n=points.length;
+  if (n<=2) return localSecantSlopes(points);
+  if (n<4) return makeNaturalCubic(points).slopes.slice();
+  const x=points.map(p=>p.x), y=points.map(p=>p.y);
+  const h=[], d=[];
+  for(let i=0;i<n-1;i++){
+    h[i]=x[i+1]-x[i];
+    d[i]=(y[i+1]-y[i])/h[i];
+  }
+  // Eliminate the two endpoint second derivatives from the not-a-knot
+  // boundary equations.  The remaining system for M_1,...,M_{n-2} is
+  // tridiagonal, avoiding the dense O(n^2) storage of the earlier implementation.
+  const count=n-2;
+  const lower=Array(count-1).fill(0), diag=Array(count).fill(0), upper=Array(count-1).fill(0), rhs=Array(count).fill(0);
+  const leftSum=h[0]+h[1];
+  diag[0]=leftSum*(2+h[0]/h[1])+1e-12;
+  upper[0]=h[1]-h[0]*h[0]/h[1];
+  rhs[0]=6*(d[1]-d[0]);
+  for(let i=2;i<=n-3;i++){
+    const j=i-1;
+    lower[j-1]=h[i-1];
+    diag[j]=2*(h[i-1]+h[i])+1e-12;
+    upper[j]=h[i];
+    rhs[j]=6*(d[i]-d[i-1]);
+  }
+  const last=count-1, rightSum=h[n-3]+h[n-2];
+  lower[last-1]=h[n-3]-h[n-2]*h[n-2]/h[n-3];
+  diag[last]=rightSum*(2+h[n-2]/h[n-3])+1e-12;
+  rhs[last]=6*(d[n-2]-d[n-3]);
+  let M;
+  try {
+    const inner=solveTridiagonalSystem(lower,diag,upper,rhs);
+    M=Array(n).fill(0);
+    for(let i=1;i<n-1;i++) M[i]=inner[i-1];
+    M[0]=(leftSum*M[1]-h[0]*M[2])/h[1];
+    M[n-1]=(-h[n-2]*M[n-3]+rightSum*M[n-2])/h[n-3];
+  }
+  catch(e){ return makeNaturalCubic(points).slopes.slice(); }
+  const slopes=Array(n).fill(0);
+  slopes[0]=d[0] - h[0]*(2*M[0]+M[1])/6;
+  for(let i=1;i<n-1;i++){
+    const left = d[i-1] + h[i-1]*(M[i-1]+2*M[i])/6;
+    const right = d[i] - h[i]*(2*M[i]+M[i+1])/6;
+    slopes[i] = 0.5*(left+right);
+  }
+  slopes[n-1]=d[n-2] + h[n-2]*(M[n-2]+2*M[n-1])/6;
+  return slopes;
+}
+function hymanFilteredSlopes(points){
+  const n = points.length;
+  if (n <= 2) return localSecantSlopes(points);
+  const base = notAKnotCubicSlopes(points);
+  const sec=[];
+  for(let i=0;i<n-1;i++) sec[i]=(points[i+1].y-points[i].y)/(points[i+1].x-points[i].x);
+  const out=base.slice();
+  for(let i=0;i<n;i++){
+    // Hyman Eq. (2.3): near the boundary use S_{-1/2}=S_{1/2}
+    // and S_{n+1/2}=S_{n-1/2}.
+    const sL = (i===0) ? sec[0] : sec[i-1];
+    const sR = (i===n-1) ? sec[n-2] : sec[i];
+    const eps = 1e-14;
+    if (!Number.isFinite(base[i]) || Math.abs(sL) < eps || Math.abs(sR) < eps || sL*sR <= 0){
+      out[i]=0;
+    } else if (sL > 0 && sR > 0){
+      const smin = Math.min(sL, sR);
+      out[i]=Math.min(Math.max(0, base[i]), 3*smin);
+    } else { // sL < 0 and sR < 0
+      const smax = Math.max(sL, sR); // negative value closest to zero
+      out[i]=Math.max(Math.min(0, base[i]), 3*smax);
+    }
+  }
+  return out;
+}
+function makeHymanFiltered(points){ const s=hymanFilteredSlopes(points); return {eval:makeHermiteEvaluator(points,s), slopes:s, info:{solverName:'Hyman 1983 Eq. (2.3) filtered not-a-knot cubic spline slopes'}}; }
+
+
+// ---------- Dougherty--Edelman--Hyman cubic monotonicity constrainer ----------
+// Final cubic algorithm from Dougherty, Edelman, and Hyman (1989), Sec. 4.A.2.
+// Natural-cubic slopes are used as the accurate initial derivative estimates.
+// The limiter uses the parabolic slopes p_i^{-1}, p_i^0, and p_i^1 from Eq. (4.4)
+// and the C=1.5 relaxation in the final algorithm following that equation.
+function quadraticSlopeAt(points, i0, i1, i2, atIndex){
+  const ids=[i0,i1,i2];
+  const x=points[atIndex].x;
+  let slope=0;
+  for(let a=0;a<3;a++){
+    const j=ids[a], k=ids[(a+1)%3], l=ids[(a+2)%3];
+    const xj=points[j].x, xk=points[k].x, xl=points[l].x;
+    const den=(xj-xk)*(xj-xl);
+    if(Math.abs(den)<1e-15) return NaN;
+    slope += points[j].y * ((x-xk)+(x-xl)) / den;
+  }
+  return slope;
+}
+
+function dehCubicMonotoneSlopes(points){
+  const n = points.length;
+  if (n <= 2) return localSecantSlopes(points);
+  const base = makeNaturalCubic(points).slopes.slice();
+  const sec = [];
+  for(let e=0;e<n-1;e++){
+    const h = points[e+1].x - points[e].x;
+    sec[e] = (points[e+1].y - points[e].y) / h;
+  }
+
+  let scale=1;
+  for(const value of sec) scale=Math.max(scale,Math.abs(value));
+  for(const value of base) scale=Math.max(scale,Math.abs(value));
+  const eps=1e-13*scale;
+  const sign=v=>v>eps ? 1 : (v<-eps ? -1 : 0);
+  const sameStrictSign=values=>{
+    const s=sign(values[0]);
+    return s!==0 && values.every(v=>sign(v)===s);
+  };
+  const out=Array(n).fill(0);
+
+  // Endpoint rule stated after the final interior algorithm.
+  for(const [i,s] of [[0,sec[0]],[n-1,sec[n-2]]]){
+    out[i]=(sign(base[i])!==0 && sign(base[i])===sign(s))
+      ? sign(base[i])*Math.min(Math.abs(base[i]),3*Math.abs(s)) : 0;
+  }
+
+  for(let i=1;i<n-1;i++){
+    const p0=quadraticSlopeAt(points,i-1,i,i+1,i);
+    if(!Number.isFinite(p0)) { out[i]=0; continue; }
+    let M=3*Math.min(Math.abs(sec[i-1]),Math.abs(sec[i]),Math.abs(p0));
+
+    if(i>=2){
+      const pm1=quadraticSlopeAt(points,i-2,i-1,i,i);
+      if(Number.isFinite(pm1) && sameStrictSign([
+        p0, pm1, sec[i-1]-sec[i-2], sec[i]-sec[i-1]
+      ])) M=Math.max(M,1.5*Math.min(Math.abs(p0),Math.abs(pm1)));
+    }
+    if(i<=n-3){
+      const p1=quadraticSlopeAt(points,i,i+1,i+2,i);
+      if(Number.isFinite(p1) && sameStrictSign([
+        -p0, -p1, sec[i]-sec[i-1], sec[i+1]-sec[i]
+      ])) M=Math.max(M,1.5*Math.min(Math.abs(p0),Math.abs(p1)));
+    }
+
+    out[i]=(sign(base[i])!==0 && sign(base[i])===sign(p0))
+      ? sign(base[i])*Math.min(Math.abs(base[i]),M) : 0;
+  }
+  return out;
+}
+function makeDehCubicMonotone(points){
+  const s = dehCubicMonotoneSlopes(points);
+  return {eval:makeHermiteEvaluator(points,s), slopes:s, info:{solverName:'DEH 1989 final cubic algorithm with natural-cubic initial slopes'}};
+}
+
+function akimaSlopes(points, modified=false){
+  const n=points.length, x=points.map(p=>p.x), y=points.map(p=>p.y);
+  if (n<=2) return [(y[1]-y[0])/(x[1]-x[0]), (y[1]-y[0])/(x[1]-x[0])];
+  if (n<5) return makeNaturalCubic(points).slopes;
+  const delta=[];
+  for(let i=0;i<n-1;i++) delta[i]=(y[i+1]-y[i])/(x[i+1]-x[i]);
+  const ext=[];
+  // ext index shifted by +2. ext[2+i] = delta[i]
+  for(let i=0;i<n-1;i++) ext[i+2]=delta[i];
+  ext[1]=2*ext[2]-ext[3];
+  ext[0]=2*ext[1]-ext[2];
+  ext[n+1]=2*ext[n]-ext[n-1];
+  ext[n+2]=2*ext[n+1]-ext[n];
+  const m=Array(n).fill(0);
+  for(let i=0;i<n;i++){
+    const im2=ext[i], im1=ext[i+1], i0=ext[i+2], ip1=ext[i+3];
+    let w1=Math.abs(ip1-i0), w2=Math.abs(im1-im2);
+    if (modified){
+      w1 += 0.5*Math.abs(ip1+i0);
+      w2 += 0.5*Math.abs(im1+im2);
+    }
+    if (w1+w2 > 1e-14) m[i]=(w1*im1 + w2*i0)/(w1+w2);
+    else m[i]=0.5*(im1+i0);
+  }
+  return m;
+}
+function makeAkima(points, modified=false){ const s=akimaSlopes(points, modified); return {eval:makeHermiteEvaluator(points,s), slopes:s}; }
+
+// ---------- FEM mesh and stiffness ----------
+function buildRefinedMesh(points, subPerInterval, useGhost){
+  const nodes=[];
+  const known=[];
+  const originalNodeIndex=[];
+  const n=points.length;
+  if (useGhost && n>=2){
+    nodes.push({x:2*points[0].x-points[1].x, y:2*points[0].y-points[1].y, known:true, ghost:true, original:-1});
+    known.push(0);
+  }
+  for(let e=0;e<n-1;e++){
+    if (e===0){
+      originalNodeIndex[0]=nodes.length;
+      nodes.push({x:points[0].x, y:points[0].y, known:true, original:0});
+      known.push(nodes.length-1);
+    }
+    const s=Math.max(2, Math.floor(subPerInterval));
+    for(let j=1;j<s;j++){
+      const t=j/s;
+      const x=points[e].x*(1-t)+points[e+1].x*t;
+      nodes.push({x, y:null, known:false, interval:e});
+    }
+    originalNodeIndex[e+1]=nodes.length;
+    nodes.push({x:points[e+1].x, y:points[e+1].y, known:true, original:e+1});
+    known.push(nodes.length-1);
+  }
+  if (useGhost && n>=2){
+    nodes.push({x:2*points[n-1].x-points[n-2].x, y:2*points[n-1].y-points[n-2].y, known:true, ghost:true, original:n});
+    known.push(nodes.length-1);
+  }
+  const unknown=[];
+  for(let i=0;i<nodes.length;i++) if (!nodes[i].known) unknown.push(i);
+  return {nodes, known, unknown, originalNodeIndex};
+}
+function buildRodK(nodes){
+  const N=nodes.length, K=zeros(N,N);
+  for(let e=0;e<N-1;e++){
+    const h=nodes[e+1].x-nodes[e].x;
+    if (h<=0) continue;
+    const c=1/h;
+    K[e][e]+=c; K[e][e+1]-=c; K[e+1][e]-=c; K[e+1][e+1]+=c;
+  }
+  return K;
+}
+function buildForceA(nodes, known, unknown, mode){
+  const A=zeros(unknown.length, known.length);
+  if (mode==='zero') return A;
+  const knownXs=known.map(idx=>nodes[idx].x);
+  for(let r=0;r<unknown.length;r++){
+    const x=nodes[unknown[r]].x;
+    if (mode==='nearest'){
+      let best=0, bd=Infinity;
+      for(let k=0;k<known.length;k++){ const d=Math.abs(knownXs[k]-x); if (d<bd){bd=d; best=k;} }
+      A[r][best]=1;
+    } else if (mode==='cubic'){
+      const idxs=known.map((idx,k)=>({k, d:Math.abs(nodes[idx].x-x)})).sort((a,b)=>a.d-b.d).slice(0, Math.min(4, known.length)).map(o=>o.k).sort((a,b)=>knownXs[a]-knownXs[b]);
+      for(const kk of idxs){
+        let w=1;
+        for(const ll of idxs){ if (ll!==kk) w *= (x-knownXs[ll])/(knownXs[kk]-knownXs[ll]); }
+        A[r][kk]=w;
+      }
+    } else { // linear
+      let k=findBracket(knownXs, x);
+      if (k<0){ A[r][0]=1; }
+      else if (k>=knownXs.length-1){ A[r][knownXs.length-1]=1; }
+      else {
+        const h=knownXs[k+1]-knownXs[k];
+        const t=h===0?0:(x-knownXs[k])/h;
+        A[r][k]=1-t; A[r][k+1]=t;
+      }
+    }
+  }
+  return A;
+}
+function findBracket(xs, x){
+  if (x < xs[0]) return -1;
+  for(let i=0;i<xs.length-1;i++) if (x <= xs[i+1]) return i;
+  return xs.length-1;
+}
+function solveFEMDisplacement(K, mesh, A, rho){
+  const {nodes, known, unknown}=mesh;
+  const N=nodes.length;
+  const u=Array(N).fill(null);
+  for(const idx of known) u[idx]=nodes[idx].y;
+  if (unknown.length===0) return u.map((v,i)=>v ?? linearEval(state.points,nodes[i].x));
+  const Kii=getSubmatrix(K, unknown, unknown);
+  const Kis=getSubmatrix(K, unknown, known);
+  const Ksi=getSubmatrix(K, known, unknown);
+  const Kss=getSubmatrix(K, known, known);
+  const us=getSubvector(u, known);
+  const AKsi=matMul(A, Ksi);
+  const AKss=matMul(A, Kss);
+  const M=matSub(Kii, matScale(AKsi, rho));
+  const rightMat=matSub(matScale(AKss, rho), Kis);
+  const rhs=matVec(rightMat, us);
+  let ui;
+  try { ui=solveLinear(M,rhs); }
+  catch(e){ ui=Array(unknown.length).fill(0); }
+  for(let r=0;r<unknown.length;r++) u[unknown[r]]=ui[r];
+  return u;
+}
+function makeNodalEvaluator(mesh, u){
+  const nodes=mesh.nodes;
+  const xs=nodes.map(n=>n.x);
+  return function(x){
+    const i=findInterval(xs,x);
+    const h=xs[i+1]-xs[i];
+    const t=h===0?0:(x-xs[i])/h;
+    return u[i]*(1-t)+u[i+1]*t;
+  };
+}
+function computeThesisFEM(points){
+  const sub=Number($('thesisSub').value)||16;
+  const rho=Number($('thesisRho').value);
+  const mesh=buildRefinedMesh(points, sub, $('thesisGhost').checked);
+  const K=buildRodK(mesh.nodes);
+  const A=buildForceA(mesh.nodes, mesh.known, mesh.unknown, $('thesisForce').value);
+  const u=solveFEMDisplacement(K, mesh, A, rho);
+  return {eval:makeNodalEvaluator(mesh,u), mesh, u, rho, metricsSupported:false};
+}
+
+// ---------- Beam-energy projection / CD-HBEP ----------
+// Input is only (x_i,y_i). The nodal values y_i are fixed and Hermite slopes
+// theta_i are computed internally. CD-HBEP minimizes the beam-metric
+// projection over bounds activated by exact interval certification. The tests
+// activate Bezier-envelope, reverse-motion slope-box, and
+// one-sided chord-side bounds.
+const SC2_DATA_CACHE=new WeakMap();
+function sc2PrepareData(points,force=false){
+  if(!force){ const found=SC2_DATA_CACHE.get(points); if(found) return found; }
+  const n=points.length, m=Math.max(0,n-1);
+  const h=Array(m), delta=Array(m), dy=Array(m);
+  let ymin=Infinity, ymax=-Infinity, maxAbsDelta=1;
+  for(let i=0;i<n;i++){ const y=points[i].y; if(y<ymin)ymin=y; if(y>ymax)ymax=y; }
+  const yr=Math.max(0,ymax-ymin);
+  for(let e=0;e<m;e++){
+    const he=points[e+1].x-points[e].x;
+    const dye=points[e+1].y-points[e].y;
+    h[e]=he; dy[e]=Math.abs(dye); delta[e]=dye/he;
+    if(Math.abs(delta[e])>maxAbsDelta) maxAbsDelta=Math.abs(delta[e]);
+  }
+  const phi=Array(m), chi=Array(m).fill(0), alpha=Array(m), isolated=Array(m).fill(0);
+  const qyr=0.05*yr;
+  for(let e=0;e<m;e++){
+    let local=Math.max(dy[e],qyr);
+    if(e>0) local=Math.max(local,dy[e-1]);
+    if(e<m-1) local=Math.max(local,dy[e+1]);
+    phi[e]=Math.max(0,Math.min(1,1-dy[e]/(local+1e-12)));
+  }
+  for(let e=0;e<m;e++){
+    if(e>0) chi[e]=Math.max(chi[e],phi[e-1]);
+    if(e<m-1) chi[e]=Math.max(chi[e],phi[e+1]);
+    alpha[e]=phi[e]*(1-chi[e]);
+  }
+  for(let e=1;e<m-1;e++){
+    const s0=signedNonzero(delta[e]), sl=signedNonzero(delta[e-1]), sr=signedNonzero(delta[e+1]);
+    if(s0&&sl&&sr&&s0*sl<0&&s0*sr<0) isolated[e]=alpha[e];
+  }
+  const cache={points,n,m,h,delta,dy,yr,maxAbsDelta,isolated};
+  SC2_DATA_CACHE.set(points,cache);
+  return cache;
+}
+function signedNonzero(v, eps=1e-12){ return Math.abs(v)<=eps ? 0 : (v>0 ? 1 : -1); }
+
+
+function hermiteBasis(t){
+  return {
+    H00: 2*t*t*t - 3*t*t + 1,
+    H10: t*t*t - 2*t*t + t,
+    H01: -2*t*t*t + 3*t*t,
+    H11: t*t*t - t*t
+  };
+}
+function hermiteValueCoeff(points,e,t){
+  const p0=points[e], p1=points[e+1];
+  const h=p1.x-p0.x;
+  const B=hermiteBasis(t);
+  return { i:e, j:e+1, a:h*B.H10, b:h*B.H11, c:B.H00*p0.y + B.H01*p1.y };
+}
+function hermiteDerivCoeff(points,e,t){
+  const p0=points[e], p1=points[e+1];
+  const h=p1.x-p0.x;
+  const delta=(p1.y-p0.y)/h;
+  return { i:e, j:e+1, a:3*t*t - 4*t + 1, b:3*t*t - 2*t, c:delta*6*t*(1-t), delta, h };
+}
+function hermiteSecondCoeff(points,e,t){
+  const p0=points[e], p1=points[e+1];
+  const h=p1.x-p0.x;
+  const delta=(p1.y-p0.y)/h;
+  // h*S''(x). h>0, so the sign is the same as S''.
+  return { i:e, j:e+1, a:6*t - 4, b:6*t - 2, c:delta*(6 - 12*t) };
+}
+function spToleranceRange(points, opts){
+  const vals=[];
+  let min=Infinity,max=-Infinity;
+  for(let e=0;e<points.length-1;e++){
+    const value=sc2IntervalTol(points,e,opts); vals.push(value);
+    if(value<min)min=value; if(value>max)max=value;
+  }
+  return {min,max,values:vals};
+}
+function getElValue(id, fallback){
+  const el=$(id);
+  if (!el) return fallback;
+  if (el.type==='checkbox') return el.checked;
+  if (el.value==='true') return true;
+  if (el.value==='false') return false;
+  return el.value;
+}
+
+function derivativeValue(points,theta,e,t){
+  const d=hermiteDerivCoeff(points,e,t);
+  return d.a*theta[d.i] + d.b*theta[d.j] + d.c;
+}
+function valueAtInterval(points,theta,e,t){
+  const v=hermiteValueCoeff(points,e,t);
+  return v.a*theta[v.i] + v.b*theta[v.j] + v.c;
+}
+function derivativeRootCandidates(points,theta,e){
+  const p0=points[e], p1=points[e+1];
+  const h=p1.x-p0.x;
+  const delta=(p1.y-p0.y)/h;
+  const mi=theta[e], mj=theta[e+1];
+  const A=3*mi + 3*mj - 6*delta;
+  const B=-4*mi - 2*mj + 6*delta;
+  const C=mi;
+  const roots=[];
+  if (Math.abs(A)<1e-14){
+    if (Math.abs(B)>1e-14){
+      const r=-C/B;
+      if (r>1e-10 && r<1-1e-10) roots.push(r);
+    }
+  } else {
+    const disc=B*B-4*A*C;
+    if (disc>=0){
+      const sq=Math.sqrt(Math.max(0,disc));
+      const r1=(-B-sq)/(2*A), r2=(-B+sq)/(2*A);
+      if (r1>1e-10 && r1<1-1e-10) roots.push(r1);
+      if (r2>1e-10 && r2<1-1e-10 && Math.abs(r2-r1)>1e-9) roots.push(r2);
+    }
+  }
+  return roots;
+}
+function localSecantSlopes(points){
+  const n=points.length;
+  const x=points.map(p=>p.x), y=points.map(p=>p.y);
+  if (n===1) return [0];
+  const h=[], d=[];
+  for(let i=0;i<n-1;i++){ h[i]=x[i+1]-x[i]; d[i]=(y[i+1]-y[i])/h[i]; }
+  const m=Array(n).fill(0);
+  m[0]=d[0]; m[n-1]=d[n-2];
+  for(let i=1;i<n-1;i++){
+    const w0=h[i], w1=h[i-1];
+    m[i]=(w0*d[i-1] + w1*d[i])/(w0+w1);
+  }
+  return m;
+}
+
+function renderBars(values, prefix, color, minVal, maxVal){
+  if (!values || !values.length) return '';
+  let lo = minVal, hi = maxVal;
+  if (lo===null || lo===undefined) lo=Math.min(...values,0);
+  if (hi===null || hi===undefined) hi=Math.max(...values,1e-9);
+  if (Math.abs(hi-lo)<1e-12){ hi=lo+1; }
+  let html='<div class="bars">';
+  for(let i=0;i<values.length;i++){
+    const v=values[i];
+    const pct=100*clamp((v-lo)/(hi-lo),0,1);
+    html += `<div class="bar-row"><span>${prefix}${i}</span><div class="bar-shell"><div class="bar-fill" style="width:${pct}%;background:${color}"></div></div><span>${fmt(v,3)}</span></div>`;
+  }
+  html+='</div>';
+  return html;
+}
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch])); }
+
+
+// ---------- Plotting, metrics, and recomputation ----------
+const LINE_DASHES = {
+  linear: [1,0], cubic: [9,3], hanGuo: [5,1.8,5,1.8,5,1.8,5,1.8,1,1.8,1,1.8,1,1.8,1,1.8], pchip: [1.2,2.4], hyman: [10,3,2,3],
+  dehCubic: [5,1.8,5,1.8,1,1.8,1,1.8],
+  akima: [2,3], makima: [5,1.8,5,1.8,5,1.8,1,1.8,1,1.8,1,1.8],
+  thesisFEM: [6,2], beamSP: [1,0]
+};
+function methodLineDash(key){ return LINE_DASHES[key] || [1,0]; }
+function methodLineWidth(key){
+  const base=Number(getElValue('lineWidth',2));
+  if(key==='beamSP') return Math.max(0.8, 0.72*base);
+  return key==='pchip' ? 1.25*base : base;
+}
+function makeGrid(points, count){
+  const n=Math.max(20, Math.floor(count||600));
+  const x0=points[0].x, x1=points[points.length-1].x;
+  const xs=[]; for(let i=0;i<n;i++) xs.push(x0 + (x1-x0)*i/(n-1));
+  return xs;
+}
+function sampleCurve(evalFn, xs){ return xs.map(x=>evalFn(x)); }
+
+function computeMethod(key, points){
+  if (key==='linear') return {eval:x=>linearEval(points,x), metricsSupported:false};
+  if (key==='cubic') return makeNaturalCubic(points);
+  if (key==='hanGuo') return makeHanGuoMDO(points);
+  if (key==='pchip') return makePchip(points);
+  if (key==='hyman') return makeHymanFiltered(points);
+  if (key==='dehCubic') return makeDehCubicMonotone(points);
+  if (key==='akima') return makeAkima(points,false);
+  if (key==='makima') return makeAkima(points,true);
+  if (key==='thesisFEM') return computeThesisFEM(points);
+  if (key==='beamSP') return computeBeamOnlySP(points);
+  return null;
+}
+function recompute(){
+  const pts=state.points;
+  if(typeof SC2_DATA_CACHE!=='undefined') SC2_DATA_CACHE.delete(pts);
+  state.curves={}; state.lastAuto={};
+  if (!pts || pts.length<2) return;
+  for(const m of METHOD_META){
+    const cb=$('show_'+m.key);
+    if (!cb || !cb.checked) continue;
+    try {
+      const obj=computeMethod(m.key, pts);
+      if (obj){ state.curves[m.key]=obj; if (m.key==='beamSP') state.lastAuto.beamSP=obj; if (m.key==='thesisFEM') state.lastAuto.thesis=obj; }
+    } catch(err){ console.error('method failed', m.key, err); }
+  }
+  updateDataHint(); renderLegend(); renderMetrics(); renderAutoParams(); applyTooltips(); drawPlot();
+}
+function renderLegend(){
+  const el=$('legend'); if (!el) return;
+  const items=[];
+  if(state.knownBenchmarkKey){
+    const index=KNOWN_BENCHMARK_CASES.findIndex(item=>item.key===state.knownBenchmarkKey)+1;
+    const label=index>0 ? `${tr('Exact reference','真の参照曲線')} f${index}` : tr('Exact reference','真の参照曲線');
+    items.push(`<span class="legend-item"><span class="swatch" style="height:0;background:transparent;border-top:3px dashed ${EXACT_REFERENCE_STYLE.color}"></span>${label}</span>`);
+  }
+  for(const m of METHOD_META){ const cb=$('show_'+m.key); if (cb && cb.checked) items.push(`<span class="legend-item"><span class="swatch" style="background:${m.color}"></span>${methodLabel(m)}</span>`); }
+  el.innerHTML=items.join('');
+}
+function renderMetrics(){
+  const table=$('metricsTable'); if (!table) return;
+  const pts=state.points; if (!pts || pts.length<2){ table.innerHTML=''; return; }
+  const rows=[];
+  for(const m of METHOD_META){
+    const curve=state.curves[m.key];
+    if (!curve) continue;
+    if (curve.metricsSupported===false){
+      rows.push(`<tr><td>${methodLabel(m)}</td>${BENCH_METRICS.map(()=>'<td title="The manuscript diagnostics are defined for one cubic Hermite segment per data interval.">—</td>').join('')}</tr>`);
+      continue;
+    }
+    const mt=metricForEval(pts, curve, Number(getElValue('evalSamples',900))||900);
+    rows.push(`<tr><td>${methodLabel(m)}</td>${BENCH_METRICS.map(k=>`<td>${fmt(mt[k]||0,4)}</td>`).join('')}</tr>`);
+  }
+  table.innerHTML = `<thead><tr><th>method</th>${BENCH_METRICS.map(k=>`<th>${BENCH_LABELS[k]||k}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody>`;
+}
+function dataBounds(points){
+  if (state.zoom && Number.isFinite(state.zoom.xmin) && Number.isFinite(state.zoom.xmax) && Number.isFinite(state.zoom.ymin) && Number.isFinite(state.zoom.ymax)){
+    const z=state.zoom;
+    if (z.xmax>z.xmin && z.ymax>z.ymin) return {xmin:z.xmin, xmax:z.xmax, ymin:z.ymin, ymax:z.ymax};
+  }
+  let xmin=points[0].x, xmax=points[points.length-1].x;
+  let ymin=Math.min(...points.map(p=>p.y)), ymax=Math.max(...points.map(p=>p.y));
+  const xs=makeGrid(points,500);
+  if(state.knownBenchmarkKey){
+    const reference=knownBenchmarkDefinition(state.knownBenchmarkKey);
+    for(const x of xs){
+      const y=reference.evaluate(x);
+      if(Number.isFinite(y)){ ymin=Math.min(ymin,y); ymax=Math.max(ymax,y); }
+    }
+  }
+  for(const key of Object.keys(state.curves)){
+    for(const y of sampleCurve(state.curves[key].eval,xs)){ if(Number.isFinite(y)){ ymin=Math.min(ymin,y); ymax=Math.max(ymax,y); } }
+  }
+  const yr=ymax-ymin || 1, xr=xmax-xmin || 1;
+  return {xmin:xmin-0.03*xr, xmax:xmax+0.03*xr, ymin:ymin-0.12*yr, ymax:ymax+0.12*yr};
+}
+function drawPlot(){
+  const canvas=$('plot'); if (!canvas) return; const ctx=canvas.getContext('2d');
+  const W=canvas.width, H=canvas.height; ctx.clearRect(0,0,W,H);
+  const pts=state.points; if(!pts || pts.length<2) return;
+  const pad={l:62,r:22,t:28,b:48}; const b=dataBounds(pts);
+  const sx=x=>pad.l+(x-b.xmin)/(b.xmax-b.xmin)*(W-pad.l-pad.r);
+  const sy=y=>H-pad.b-(y-b.ymin)/(b.ymax-b.ymin)*(H-pad.t-pad.b);
+  state.canvasTransform={...b,W,H,pad,sx,sy};
+  ctx.save(); ctx.font='12px sans-serif'; ctx.lineWidth=1;
+  if ($('showGrid').checked){
+    ctx.strokeStyle='#e5e7eb'; ctx.fillStyle='#6b7280';
+    for(let k=0;k<=8;k++){ const x=pad.l+k*(W-pad.l-pad.r)/8; ctx.beginPath(); ctx.moveTo(x,pad.t); ctx.lineTo(x,H-pad.b); ctx.stroke(); }
+    for(let k=0;k<=6;k++){ const y=pad.t+k*(H-pad.t-pad.b)/6; ctx.beginPath(); ctx.moveTo(pad.l,y); ctx.lineTo(W-pad.r,y); ctx.stroke(); }
+  }
+  if ($('showEnvelope').checked){
+    ctx.fillStyle='rgba(148,163,184,0.16)';
+    for(let e=0;e<pts.length-1;e++){ const x0=sx(pts[e].x), x1=sx(pts[e+1].x); const y0=sy(Math.max(pts[e].y,pts[e+1].y)); const y1=sy(Math.min(pts[e].y,pts[e+1].y)); ctx.fillRect(x0,y0,x1-x0,y1-y0); }
+  }
+  const drawingSamples=Math.max(120,Number(getElValue('evalSamples',900))||900);
+  const xs=makeGrid(pts,drawingSamples);
+  // Draw the exact function first.  Interpolation curves remain visible even
+  // when their approximation error is smaller than a display pixel.
+  if(state.knownBenchmarkKey){
+    const reference=knownBenchmarkDefinition(state.knownBenchmarkKey);
+    const referenceXs=makeGrid(pts,drawingSamples);
+    ctx.beginPath(); ctx.strokeStyle=EXACT_REFERENCE_STYLE.color; ctx.lineWidth=EXACT_REFERENCE_STYLE.width; ctx.setLineDash(EXACT_REFERENCE_STYLE.dash);
+    referenceXs.forEach((x,i)=>{
+      const y=reference.evaluate(x);
+      if(i===0) ctx.moveTo(sx(x),sy(y)); else ctx.lineTo(sx(x),sy(y));
+    });
+    ctx.stroke(); ctx.setLineDash([]);
+  }
+  for(const m of METHOD_META){
+    const obj=state.curves[m.key]; if(!obj) continue;
+    ctx.beginPath(); ctx.strokeStyle=m.color; ctx.lineWidth=methodLineWidth(m.key); ctx.setLineDash(methodLineDash(m.key));
+    xs.forEach((x,i)=>{ const y=obj.eval(x); if(i===0) ctx.moveTo(sx(x),sy(y)); else ctx.lineTo(sx(x),sy(y)); });
+    ctx.stroke(); ctx.setLineDash([]);
+  }
+  if ($('showPoints').checked){
+    ctx.fillStyle=COLORS.data; ctx.strokeStyle='white'; ctx.lineWidth=1.2;
+    for(const p of pts){ ctx.beginPath(); ctx.arc(sx(p.x),sy(p.y),4.5,0,Math.PI*2); ctx.fill(); ctx.stroke(); }
+  }
+  ctx.strokeStyle='#111827'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(pad.l,pad.t); ctx.lineTo(pad.l,H-pad.b); ctx.lineTo(W-pad.r,H-pad.b); ctx.stroke();
+  ctx.fillStyle='#374151'; ctx.fillText('x', W-pad.r-5, H-15); ctx.fillText('y', 16, pad.t+5);
+  if (state.selectingZoom && state.selectionStart && state.selectionEnd){
+    const x0=Math.min(state.selectionStart.x,state.selectionEnd.x), x1=Math.max(state.selectionStart.x,state.selectionEnd.x);
+    const y0=Math.min(state.selectionStart.y,state.selectionEnd.y), y1=Math.max(state.selectionStart.y,state.selectionEnd.y);
+    ctx.save();
+    ctx.fillStyle='rgba(37,99,235,0.10)';
+    ctx.strokeStyle='rgba(37,99,235,0.95)';
+    ctx.lineWidth=1.5; ctx.setLineDash([5,3]);
+    ctx.fillRect(x0,y0,x1-x0,y1-y0);
+    ctx.strokeRect(x0,y0,x1-x0,y1-y0);
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
+// ---------- Canvas interactions ----------
+function setupCanvasEvents(){
+  const canvas=$('plot');
+  function getMouse(evt){
+    const rect=canvas.getBoundingClientRect();
+    return {x:(evt.clientX-rect.left)*canvas.width/rect.width, y:(evt.clientY-rect.top)*canvas.height/rect.height};
+  }
+  function insidePlot(m){
+    const tr=state.canvasTransform; if (!tr) return false;
+    return m.x>=tr.pad.l && m.x<=tr.W-tr.pad.r && m.y>=tr.pad.t && m.y<=tr.H-tr.pad.b;
+  }
+  function screenToData(m){
+    const tr=state.canvasTransform;
+    return {
+      x: tr.xmin + (m.x-tr.pad.l)/(tr.W-tr.pad.l-tr.pad.r)*(tr.xmax-tr.xmin),
+      y: tr.ymin + (tr.H-tr.pad.b-m.y)/(tr.H-tr.pad.t-tr.pad.b)*(tr.ymax-tr.ymin)
+    };
+  }
+  canvas.addEventListener('mousedown', evt => {
+    const m=getMouse(evt); const idx=nearestPointIndex(m.x,m.y);
+    if (idx>=0){
+      state.draggingIndex=idx; state.selectingZoom=false; canvas.style.cursor='grabbing';
+    } else if (insidePlot(m)){
+      state.selectingZoom=true; state.selectionStart=m; state.selectionEnd=m; canvas.style.cursor='crosshair'; drawPlot();
+    }
+  });
+  canvas.addEventListener('mousemove', evt => {
+    const m=getMouse(evt);
+    if (state.draggingIndex>=0){
+      const tr=state.canvasTransform; if (!tr) return;
+      state.knownBenchmarkKey=null;
+      const p=state.points[state.draggingIndex];
+      p.y = tr.ymin + (tr.H-tr.pad.b-m.y)/(tr.H-tr.pad.t-tr.pad.b)*(tr.ymax-tr.ymin);
+      // Keep x sorted; allow interior x drag with neighbor limits.
+      const xr = tr.xmin + (m.x-tr.pad.l)/(tr.W-tr.pad.l-tr.pad.r)*(tr.xmax-tr.xmin);
+      const i=state.draggingIndex;
+      const left=i>0?state.points[i-1].x+1e-4:tr.xmin;
+      const right=i<state.points.length-1?state.points[i+1].x-1e-4:tr.xmax;
+      p.x=clamp(xr,left,right);
+      $('dataText').value=pointsToText(state.points);
+      recompute();
+    } else if (state.selectingZoom){
+      const tr=state.canvasTransform; if (!tr) return;
+      state.selectionEnd={
+        x: clamp(m.x, tr.pad.l, tr.W-tr.pad.r),
+        y: clamp(m.y, tr.pad.t, tr.H-tr.pad.b)
+      };
+      drawPlot();
+    } else {
+      canvas.style.cursor = nearestPointIndex(m.x,m.y)>=0 ? 'grab' : (insidePlot(m) ? 'crosshair' : 'default');
+    }
+  });
+  window.addEventListener('mouseup', evt => {
+    if (state.selectingZoom && state.selectionStart && state.selectionEnd){
+      const dx=Math.abs(state.selectionEnd.x-state.selectionStart.x);
+      const dy=Math.abs(state.selectionEnd.y-state.selectionStart.y);
+      if (dx>12 && dy>12){
+        const a=screenToData(state.selectionStart), b=screenToData(state.selectionEnd);
+        const xmin=Math.min(a.x,b.x), xmax=Math.max(a.x,b.x);
+        const ymin=Math.min(a.y,b.y), ymax=Math.max(a.y,b.y);
+        if (xmax>xmin && ymax>ymin) state.zoom={xmin,xmax,ymin,ymax};
+      }
+      state.selectingZoom=false; state.selectionStart=null; state.selectionEnd=null; drawPlot();
+    }
+    state.draggingIndex=-1; canvas.style.cursor='default';
+  });
+  canvas.addEventListener('dblclick', evt => {
+    const m=getMouse(evt); const idx=nearestPointIndex(m.x,m.y);
+    if (idx>=0 && state.points.length>2){
+      state.knownBenchmarkKey=null; state.points.splice(idx,1); $('dataText').value=pointsToText(state.points); state.zoom=null; recompute();
+    } else {
+      state.zoom=null; state.selectingZoom=false; state.selectionStart=null; state.selectionEnd=null; drawPlot();
+    }
+  });
+}
+function nearestPointIndex(px,py){
+  const tr=state.canvasTransform; if (!tr) return -1;
+  let best=-1, bd=Infinity;
+  for(let i=0;i<state.points.length;i++){
+    const dx=tr.sx(state.points[i].x)-px, dy=tr.sy(state.points[i].y)-py;
+    const d=dx*dx+dy*dy;
+    if (d<bd){ bd=d; best=i; }
+  }
+  return bd<14*14 ? best : -1;
+}
+
+
+// ---------- CD-HBEP override ----------
+function getNumberOption(id, fallback, lo=-Infinity, hi=Infinity){
+  const raw=Number(getElValue(id, fallback));
+  const v=Number.isFinite(raw) ? raw : fallback;
+  return Math.min(hi, Math.max(lo, v));
+}
+function getBoolOption(id, fallback=true){
+  const el=$(id);
+  if (!el) return fallback;
+  return !!el.checked;
+}
+const ACTIVATION_PARAMETER_DEFINITIONS=Object.freeze([
+  Object.freeze({key:'baseBandFraction',elementId:'spBaseBandFraction',symbol:'omega_band',reference:0.0075}),
+  Object.freeze({key:'flatRangeFraction',elementId:'spFlatRangeFraction',symbol:'omega_flat',reference:0.05}),
+  Object.freeze({key:'isolatedBandMultiplier',elementId:'spIsolatedBandMultiplier',symbol:'mu_iso',reference:2.5}),
+  Object.freeze({key:'isolatedScoreOffset',elementId:'spIsolatedScoreOffset',symbol:'omega_iso_0',reference:0.35}),
+  Object.freeze({key:'envelopeLocalFraction',elementId:'spEnvelopeLocalFraction',symbol:'omega_env_loc',reference:0.02}),
+  Object.freeze({key:'envelopeRangeFraction',elementId:'spEnvelopeRangeFraction',symbol:'omega_env_rng',reference:0.002}),
+  Object.freeze({key:'envelopeIsolationGain',elementId:'spEnvelopeIsolationGain',symbol:'mu_env_iso',reference:1.25}),
+  Object.freeze({key:'handleBandMultiplier',elementId:'spHandleBandMultiplier',symbol:'mu_handle',reference:1.5}),
+  Object.freeze({key:'reverseLocalFraction',elementId:'spReverseLocalFraction',symbol:'omega_rev_loc',reference:0.08}),
+  Object.freeze({key:'reverseIsolationGain',elementId:'spReverseIsolationGain',symbol:'mu_rev_iso',reference:2.0}),
+  Object.freeze({key:'sideLocalFraction',elementId:'spSideLocalFraction',symbol:'omega_side_loc',reference:0.20}),
+  Object.freeze({key:'sideRangeFraction',elementId:'spSideRangeFraction',symbol:'omega_side_rng',reference:0.07})
+]);
+function activationParameterDefinitions(){
+  return ACTIVATION_PARAMETER_DEFINITIONS.map(item=>({...item}));
+}
+function activationReferenceConfiguration(){
+  return Object.fromEntries(ACTIVATION_PARAMETER_DEFINITIONS.map(item=>[item.key,item.reference]));
+}
+const ACTIVATION_VALIDATION_SETTINGS=Object.freeze({
+  sobolSeed:20250317,
+  globalCandidates:1024,
+  globalLowerMultiplier:0.5,
+  globalUpperMultiplier:2.0,
+  localCandidates:256,
+  localLowerMultiplier:0.9,
+  localUpperMultiplier:1.1,
+  calibrationRandomSeed:42424242,
+  calibrationRandomCases:200,
+  calibrationKnownSizes:Object.freeze([30,60]),
+  holdoutRandomSeed:271828182,
+  holdoutRandomCases:500,
+  holdoutKnownSizes:Object.freeze([45,90]),
+  knownEvaluationSamples:2001,
+  metricSamples:300,
+  dominanceRelativeTolerance:0.01,
+  certificateTolerance:1e-9
+});
+function activationValidationSettings(){
+  return {...ACTIVATION_VALIDATION_SETTINGS,
+    calibrationKnownSizes:Array.from(ACTIVATION_VALIDATION_SETTINGS.calibrationKnownSizes),
+    holdoutKnownSizes:Array.from(ACTIVATION_VALIDATION_SETTINGS.holdoutKnownSizes)};
+}
+const SOBOL_DIRECTION_PARAMETERS=Object.freeze([
+  null,
+  Object.freeze({s:1,a:0,m:Object.freeze([1])}),
+  Object.freeze({s:2,a:1,m:Object.freeze([1,3])}),
+  Object.freeze({s:3,a:1,m:Object.freeze([1,3,1])}),
+  Object.freeze({s:3,a:2,m:Object.freeze([1,1,1])}),
+  Object.freeze({s:4,a:1,m:Object.freeze([1,3,5,13])}),
+  Object.freeze({s:4,a:4,m:Object.freeze([1,1,5,5])}),
+  Object.freeze({s:5,a:2,m:Object.freeze([1,3,3,9,7])}),
+  Object.freeze({s:5,a:4,m:Object.freeze([1,3,7,13,3])}),
+  Object.freeze({s:5,a:7,m:Object.freeze([1,1,5,11,27])}),
+  Object.freeze({s:5,a:11,m:Object.freeze([1,3,5,1,15])}),
+  Object.freeze({s:5,a:13,m:Object.freeze([1,1,7,3,29])})
+]);
+function sobolDirectionNumbers(dimension){
+  const bits=32, directions=Array(bits).fill(0);
+  if(dimension===0){
+    for(let bit=0;bit<bits;bit++) directions[bit]=(0x80000000>>>bit)>>>0;
+    return directions;
+  }
+  const parameters=SOBOL_DIRECTION_PARAMETERS[dimension];
+  if(!parameters) throw new Error(`Sobol dimension ${dimension+1} is unavailable`);
+  const {s,a,m}=parameters;
+  for(let bit=1;bit<=s;bit++) directions[bit-1]=(m[bit-1]<<(32-bit))>>>0;
+  for(let bit=s+1;bit<=bits;bit++){
+    let value=(directions[bit-s-1]^(directions[bit-s-1]>>>s))>>>0;
+    for(let k=1;k<s;k++) if((a>>>(s-1-k))&1) value=(value^directions[bit-k-1])>>>0;
+    directions[bit-1]=value;
+  }
+  return directions;
+}
+function digitallyShiftedSobolPoints(count,dimension,seed){
+  const pointCount=Math.max(0,Math.floor(count)), dimensions=Math.max(1,Math.floor(dimension));
+  if(dimensions>SOBOL_DIRECTION_PARAMETERS.length) throw new Error(`at most ${SOBOL_DIRECTION_PARAMETERS.length} Sobol dimensions are supported`);
+  const shifts=[], shiftRandom=seededRandom(seed);
+  for(let d=0;d<dimensions;d++) shifts.push(Math.floor(shiftRandom()*4294967296)>>>0);
+  const directions=Array.from({length:dimensions},(_,d)=>sobolDirectionNumbers(d));
+  const points=[];
+  for(let index=1;index<=pointCount;index++){
+    const gray=(index^(index>>>1))>>>0, point=[];
+    for(let d=0;d<dimensions;d++){
+      let bits=gray, coordinate=shifts[d], bit=0;
+      while(bits!==0){
+        if(bits&1) coordinate=(coordinate^directions[d][bit])>>>0;
+        bits>>>=1; bit++;
+      }
+      point.push(coordinate/4294967296);
+    }
+    points.push(point);
+  }
+  return points;
+}
+function activationConfigurationFromUnitPoint(point,lowerMultiplier,upperMultiplier){
+  if(point.length<ACTIVATION_PARAMETER_DEFINITIONS.length) throw new Error('activation configuration requires twelve coordinates');
+  if(!(lowerMultiplier>0&&upperMultiplier>=lowerMultiplier)) throw new Error('invalid activation multiplier interval');
+  const logLower=Math.log(lowerMultiplier), logRatio=Math.log(upperMultiplier/lowerMultiplier);
+  return Object.fromEntries(ACTIVATION_PARAMETER_DEFINITIONS.map((item,index)=>[
+    item.key,item.reference*Math.exp(logLower+Math.min(1,Math.max(0,point[index]))*logRatio)
+  ]));
+}
+function spOptions(points=state.points){
+  const pts=points && points.length ? points : [{y:0},{y:1}];
+  const reference=activationReferenceConfiguration();
+  const baseBandFraction=getNumberOption('spBaseBandFraction',reference.baseBandFraction,0,0.05);
+  return {
+    over:getBoolOption('spOver',true),
+    reverseGuard:getBoolOption('spReverseGuard',true),
+    chordSide:getBoolOption('spChordSide',true),
+    baseBandFraction,
+    flatRangeFraction:getNumberOption('spFlatRangeFraction',reference.flatRangeFraction,0,0.5),
+    isolatedBandMultiplier:getNumberOption('spIsolatedBandMultiplier',reference.isolatedBandMultiplier,0,10),
+    isolatedScoreOffset:getNumberOption('spIsolatedScoreOffset',reference.isolatedScoreOffset,0,1),
+    envelopeLocalFraction:getNumberOption('spEnvelopeLocalFraction',reference.envelopeLocalFraction,0,1),
+    envelopeRangeFraction:getNumberOption('spEnvelopeRangeFraction',reference.envelopeRangeFraction,0,0.1),
+    envelopeIsolationGain:getNumberOption('spEnvelopeIsolationGain',reference.envelopeIsolationGain,0,10),
+    handleBandMultiplier:getNumberOption('spHandleBandMultiplier',reference.handleBandMultiplier,0,10),
+    reverseLocalFraction:getNumberOption('spReverseLocalFraction',reference.reverseLocalFraction,0,1),
+    reverseIsolationGain:getNumberOption('spReverseIsolationGain',reference.reverseIsolationGain,0,10),
+    sideLocalFraction:getNumberOption('spSideLocalFraction',reference.sideLocalFraction,0,1),
+    sideRangeFraction:getNumberOption('spSideRangeFraction',reference.sideRangeFraction,0,0.2),
+    signTolScale:1e-10,
+    boundFeasTol:1e-12,
+    kktTol:1e-9,
+    maxActiveRounds:3*Math.max(1,(pts.length-1))+1
+  };
+}
+function sc2IntervalTol(points,e,opts){
+  const cache=(opts&&opts._sc2Cache)||sc2PrepareData(points), yr=cache.yr, dy=cache.dy[e];
+  const base=(opts.baseBandFraction??0.0075) * Math.max(dy, (opts.flatRangeFraction??0.05)*yr, 1e-12);
+  const iso=cache.isolated[e]||0;
+  if (iso>0){
+    // A small interval whose sign is opposite to two larger neighboring
+    // intervals is treated as a rounded local reversal.  A global-scale
+    // tolerance prevents the envelope or slope box from turning such a
+    // shallow turn into a nearly linear PCHIP-like segment.
+    return Math.max(base, (opts.baseBandFraction??0.0075) * (opts.isolatedBandMultiplier??2.5) * yr * Math.min(1, (opts.isolatedScoreOffset??0.35) + iso));
+  }
+  return base;
+}
+function sc2ReverseMotion(points, theta, e, opts){
+  // Return the integrated amount of motion opposite to the secant direction.
+  // This is A_rev,e = integral max(0, -sigma_e S'_e(x)) dx.
+  // For a cubic Hermite segment, S'_e is quadratic, so the derivative roots
+  // split the interval into subintervals on which the sign of S'_e is fixed.
+  const cache=opts._sc2Cache||sc2PrepareData(points), h=cache.h[e], delta=cache.delta[e];
+  const sgn=signedNonzero(delta);
+  if (!sgn) return {amount:0,t:0,maxReverseSlope:0};
+  const cuts=[0,1,...derivativeRootCandidates(points,theta,e)]
+    .filter(t=>Number.isFinite(t) && t>=-1e-12 && t<=1+1e-12)
+    .map(t=>Math.min(1,Math.max(0,t)))
+    .sort((a,b)=>a-b);
+  const uniq=[];
+  for(const t of cuts){ if(!uniq.length || Math.abs(t-uniq[uniq.length-1])>1e-9) uniq.push(t); }
+  let amount=0, tBest=0, segBest=0, maxReverseSlope=0;
+  for(let k=0;k<uniq.length-1;k++){
+    const a=uniq[k], b=uniq[k+1];
+    if (b-a<1e-10) continue;
+    const mid=0.5*(a+b);
+    const signedDer=sgn*derivativeValue(points,theta,e,mid);
+    if (signedDer < 0){
+      const va=valueAtInterval(points,theta,e,a);
+      const vb=valueAtInterval(points,theta,e,b);
+      const revAmount=Math.max(0, -sgn*(vb-va));
+      amount += revAmount;
+      if (revAmount>segBest){ segBest=revAmount; tBest=mid; }
+    }
+  }
+  const check=[...uniq];
+  const c0=hermiteSecondCoeff(points,e,0), c1=hermiteSecondCoeff(points,e,1);
+  const s0=c0.a*theta[c0.i]+c0.b*theta[c0.j]+c0.c;
+  const s1=c1.a*theta[c1.i]+c1.b*theta[c1.j]+c1.c;
+  if (Math.abs(s1-s0)>1e-14){
+    const tv=-s0/(s1-s0);
+    if (tv>1e-10 && tv<1-1e-10) check.push(tv);
+  }
+  for(const t of check){ maxReverseSlope=Math.max(maxReverseSlope, Math.max(0,-sgn*derivativeValue(points,theta,e,t))); }
+  return {amount,t:tBest,maxReverseSlope};
+}
+function sc2ActivationThreshold(points,e,opts,kind){
+  // Activate hard interval constraints only when a certified violation is
+  // visible relative to both the automatic tolerance and the local amplitude.
+  // This avoids converting shallow isolated rounded intervals into PCHIP-like
+  // straight segments, while preserving strong guards for clear reverse motion.
+  const cache=opts._sc2Cache||sc2PrepareData(points), yr=cache.yr, dy=cache.dy[e];
+  const base=sc2IntervalTol(points,e,opts);
+  const iso=cache.isolated[e]||0;
+  if (kind==='reverse'){
+    const amplitude=Math.max(dy,(opts.flatRangeFraction??0.05)*yr);
+    return Math.max(base, (opts.reverseLocalFraction??0.08)*amplitude) * (1 + (opts.reverseIsolationGain??2.0)*iso*iso);
+  }
+  return Math.max(base, (opts.envelopeLocalFraction??0.02)*dy, (opts.envelopeRangeFraction??0.002)*yr) * (1 + (opts.envelopeIsolationGain??1.25)*iso*iso);
+}
+
+function sc2LocalConvexitySign(points,e,opts={}){
+  // +1: locally convex data, -1: locally concave data, 0: unclear.
+  // Use exactly the local classifier stated for A_side in the manuscript:
+  // every available adjacent secant-slope difference must be nonzero and
+  // have the same sign. Endpoint intervals have one available difference.
+  const cache=opts._sc2Cache||sc2PrepareData(points), m=cache.m;
+  if (m<2) return 0;
+  const eps=(opts.signTolScale??1e-10)*cache.maxAbsDelta;
+  let left=null,right=null;
+  if(e>0){ const v=cache.delta[e]-cache.delta[e-1]; left=v>eps?1:(v<-eps?-1:0); }
+  if(e<m-1){ const v=cache.delta[e+1]-cache.delta[e]; right=v>eps?1:(v<-eps?-1:0); }
+  if(left===null) return right||0;
+  if(right===null) return left||0;
+  return left!==0&&left===right?left:0;
+}
+function sc2ChordDeviationCandidates(points,theta,e){
+  const cache=sc2PrepareData(points), h=cache.h[e], delta=cache.delta[e];
+  const a=theta[e]-delta, b=theta[e+1]-delta;
+  const A=3*(a+b), B=-4*a-2*b, C=a;
+  const roots=[0,1];
+  if (Math.abs(A)<1e-14){
+    if (Math.abs(B)>1e-14){ const t=-C/B; if(t>1e-12 && t<1-1e-12) roots.push(t); }
+  } else {
+    const disc=B*B-4*A*C;
+    if (disc>=0){
+      const s=Math.sqrt(Math.max(0,disc));
+      const t1=(-B-s)/(2*A), t2=(-B+s)/(2*A);
+      if(t1>1e-12 && t1<1-1e-12) roots.push(t1);
+      if(t2>1e-12 && t2<1-1e-12) roots.push(t2);
+    }
+  }
+  roots.sort((x,y)=>x-y);
+  const out=[];
+  for(const t of roots) if(!out.length || Math.abs(t-out[out.length-1])>1e-10) out.push(t);
+  return {delta,h,roots:out};
+}
+function sc2ChordDeviationValue(points,theta,e,t){
+  const cache=sc2PrepareData(points), h=cache.h[e], delta=cache.delta[e];
+  const a=theta[e]-delta, b=theta[e+1]-delta;
+  const H10=t*t*t-2*t*t+t;
+  const H11=t*t*t-t*t;
+  return h*(a*H10+b*H11); // S(t)-L(t)
+}
+function sc2ChordSideThreshold(points,e,opts){
+  const cache=opts._sc2Cache||sc2PrepareData(points), yr=cache.yr, dy=cache.dy[e];
+  // Fixed, non-user threshold: large enough to avoid clipping ordinary beam roundness,
+  // small enough to catch the visibly excessive side deviation in strongly convex/concave data.
+  return Math.max((opts.sideLocalFraction??0.20)*dy, (opts.sideRangeFraction??0.07)*yr);
+}
+function sc2ChordSideDeviation(points,theta,e,opts){
+  const sign=sc2LocalConvexitySign(points,e,opts);
+  if (!sign) return {amount:0,t:0,sign:0,threshold:Infinity};
+  const cand=sc2ChordDeviationCandidates(points,theta,e);
+  let amount=0, tBest=0, devBest=0;
+  for(const t of cand.roots){
+    const dev=sc2ChordDeviationValue(points,theta,e,t);
+    // convex data (+): excessive curvature-side deviation is below the chord;
+    // concave data (-): excessive curvature-side deviation is above the chord.
+    const side = sign>0 ? Math.max(0,-dev) : Math.max(0,dev);
+    if (side>amount){ amount=side; tBest=t; devBest=dev; }
+  }
+  return {amount,t:tBest,sign,dev:devBest,threshold:sc2ChordSideThreshold(points,e,opts)};
+}
+function sc2DetectActivations(points, theta, opts, activeEnv, activeMono, activeSide=new Set()){
+  const addEnv=[], addMono=[], addSide=[], report=[];
+  for(let e=0;e<points.length-1;e++){
+    if (opts.over && !activeEnv.has(e)){
+      const env=sc2EnvelopeViolation(points,theta,e,opts);
+      const envThreshold=sc2ActivationThreshold(points,e,opts,'envelope');
+      const handleThreshold=Math.max((opts.handleBandMultiplier??1.5)*sc2IntervalTol(points,e,opts), envThreshold);
+      if (env.amount > envThreshold || (env.handleAmount||0) > handleThreshold){
+        const byHandle=(env.handleAmount||0) > handleThreshold && env.amount <= envThreshold;
+        addEnv.push(e);
+        if(!opts._compact) report.push({type:byHandle?'activate envelope by Bezier handle':'activate envelope', e, t:env.t, amount:byHandle?env.handleAmount:env.amount, threshold:byHandle?handleThreshold:envThreshold});
+      }
+    }
+    if (opts.reverseGuard && !activeMono.has(e)){
+      const rev=sc2ReverseMotion(points,theta,e,opts);
+      const revThreshold=sc2ActivationThreshold(points,e,opts,'reverse');
+      if (rev.amount > revThreshold){
+        addMono.push(e);
+        if(!opts._compact) report.push({type:'activate slope box', e, t:rev.t, amount:rev.amount, threshold:revThreshold});
+      }
+    }
+    if (opts.chordSide && !activeSide.has(e)){
+      const side=sc2ChordSideDeviation(points,theta,e,opts);
+      if (side.amount > side.threshold){
+        addSide.push(e);
+        if(!opts._compact) report.push({type:side.sign>0?'activate convex chord-side guard':'activate concave chord-side guard', e, t:side.t, amount:side.amount, threshold:side.threshold});
+      }
+    }
+  }
+  return {addEnv, addMono, addSide, report};
+}
+
+
+function clampToBoundsValue(v, lo, hi){
+  if (Number.isFinite(lo) && v < lo) return lo;
+  if (Number.isFinite(hi) && v > hi) return hi;
+  return v;
+}
+function solveTridiagonalSystem(lower, diag, upper, rhs){
+  const n=diag.length;
+  if (n===0) return [];
+  const a=lower.slice(), b=diag.slice(), c=upper.slice(), d=rhs.slice();
+  for(let i=1;i<n;i++){
+    const piv=Math.abs(b[i-1])<1e-14 ? (b[i-1]>=0?1e-14:-1e-14) : b[i-1];
+    const m=a[i-1]/piv;
+    b[i]-=m*c[i-1];
+    d[i]-=m*d[i-1];
+  }
+  const x=Array(n).fill(0);
+  const last=Math.abs(b[n-1])<1e-14 ? (b[n-1]>=0?1e-14:-1e-14) : b[n-1];
+  x[n-1]=d[n-1]/last;
+  for(let i=n-2;i>=0;i--){
+    const piv=Math.abs(b[i])<1e-14 ? (b[i]>=0?1e-14:-1e-14) : b[i];
+    x[i]=(d[i]-c[i]*x[i+1])/piv;
+  }
+  return x;
+}
+function intersectSlopeBound(bounds, idx, lo, hi, type, e){
+  bounds.lower[idx]=Math.max(bounds.lower[idx], lo);
+  bounds.upper[idx]=Math.min(bounds.upper[idx], hi);
+  if(!bounds.compact) bounds.items.push({idx,lo,hi,type,e});
+}
+
+function sc2ChordSideGuardSpec(points, opts, e){
+  const sign=sc2LocalConvexitySign(points,e,opts);
+  if (!sign) return null;
+  const cache=opts._sc2Cache||sc2PrepareData(points), h=cache.h[e], delta=cache.delta[e];
+  const nominal=sc2ChordSideThreshold(points,e,opts);
+  return {e,sign,h,delta,nominal,s0:3*nominal/h};
+}
+function sc2CommonChordSideFactorDetails(bounds, specs, feasibilityTol=1e-12){
+  const lowerCandidates=Array.from({length:bounds.lower.length},()=>[]);
+  const upperCandidates=Array.from({length:bounds.upper.length},()=>[]);
+  for(let j=0;j<bounds.lower.length;j++){
+    if(Number.isFinite(bounds.lower[j])) lowerCandidates[j].push({a:bounds.lower[j],b:0});
+    if(Number.isFinite(bounds.upper[j])) upperCandidates[j].push({c:bounds.upper[j],d:0});
+    if(bounds.lower[j]>bounds.upper[j]+feasibilityTol){
+      throw new Error(`infeasible primary bounds at slope ${j}: ${bounds.lower[j]} > ${bounds.upper[j]}`);
+    }
+  }
+  for(const spec of specs){
+    const {e,sign,delta,s0}=spec;
+    if(sign>0){
+      lowerCandidates[e].push({a:delta,b:s0});
+      upperCandidates[e+1].push({c:delta,d:s0});
+    }else{
+      upperCandidates[e].push({c:delta,d:s0});
+      lowerCandidates[e+1].push({a:delta,b:s0});
+    }
+  }
+  let factor=1;
+  for(let j=0;j<bounds.lower.length;j++){
+    for(const lo of lowerCandidates[j]) for(const hi of upperCandidates[j]){
+      const denominator=lo.b+hi.d;
+      if(denominator>0) factor=Math.max(factor,(lo.a-hi.c)/denominator);
+      else if(lo.a>hi.c+feasibilityTol){
+        throw new Error(`infeasible primary bounds at slope ${j}: ${lo.a} > ${hi.c}`);
+      }
+    }
+  }
+  const analyticalFactor=factor;
+  if(factor>1) factor+=64*Number.EPSILON*Math.max(1,Math.abs(factor));
+  return {analyticalFactor,implementationFactor:factor};
+}
+function sc2AddChordSideGuardBounds(bounds, spec, factor){
+  const {e,sign,delta,nominal,s0}=spec;
+  const effective=nominal*factor;
+  const s=s0*factor;
+  if (sign>0){
+    // Locally convex data: do not allow the segment to sag too far below its chord.
+    intersectSlopeBound(bounds,e,delta-s,Infinity,'chord-side',e);
+    intersectSlopeBound(bounds,e+1,-Infinity,delta+s,'chord-side',e);
+  } else {
+    // Locally concave data: do not allow the segment to bulge too far above its chord.
+    intersectSlopeBound(bounds,e,-Infinity,delta+s,'chord-side',e);
+    intersectSlopeBound(bounds,e+1,delta-s,Infinity,'chord-side',e);
+  }
+  const record={e,sign,nominal,effective,factor,relaxed:factor>1+1e-12};
+  if(!bounds.compact) bounds.sideSlack.push(record);
+  return record;
+}
+function sc2BuildActiveBounds(points, opts, activeEnv, activeMono, activeSide=new Set()){
+  const n=points.length;
+  const cache=opts._sc2Cache||sc2PrepareData(points);
+  const bounds={lower:Array(n).fill(-Infinity), upper:Array(n).fill(Infinity), items:[], sideSlack:[],
+    sideRelaxationAnalyticalFactor:1,sideRelaxationFactor:1,compact:!!opts._compact};
+  for(const e of activeEnv){
+    const p0=points[e], p1=points[e+1];
+    const h=cache.h[e];
+    const eps=sc2IntervalTol(points,e,opts);
+    const lo=Math.min(p0.y,p1.y)-eps;
+    const hi=Math.max(p0.y,p1.y)+eps;
+    intersectSlopeBound(bounds,e,   3*(lo-p0.y)/h,      3*(hi-p0.y)/h,      'bezier-env', e);
+    intersectSlopeBound(bounds,e+1, 3*(p1.y-hi)/h,      3*(p1.y-lo)/h,      'bezier-env', e);
+  }
+  for(const e of activeMono){
+    const delta=cache.delta[e];
+    let lo,hi;
+    if (delta>0){ lo=0; hi=3*delta; }
+    else if (delta<0){ lo=3*delta; hi=0; }
+    else { lo=0; hi=0; }
+    intersectSlopeBound(bounds,e,lo,hi,'slope-box',e);
+    intersectSlopeBound(bounds,e+1,lo,hi,'slope-box',e);
+  }
+  // Assemble every secondary side bound before intersection. The smallest
+  // common factor that keeps every coordinate box nonempty is independent of
+  // interval traversal order and equivariant under horizontal reflection.
+  const sideSpecs=[];
+  for(let e=0;e<n-1;e++) if(activeSide.has(e)){
+    const spec=sc2ChordSideGuardSpec(points,opts,e);
+    if(spec) sideSpecs.push(spec);
+  }
+  const sideFactors=sc2CommonChordSideFactorDetails(bounds,sideSpecs,opts.boundFeasTol??1e-12);
+  const sideFactor=sideFactors.implementationFactor;
+  bounds.sideRelaxationAnalyticalFactor=sideFactors.analyticalFactor;
+  bounds.sideRelaxationFactor=sideFactor;
+  for(const spec of sideSpecs) sc2AddChordSideGuardBounds(bounds,spec,sideFactor);
+  for(let i=0;i<n;i++){
+    if(bounds.lower[i]>bounds.upper[i]+(opts.boundFeasTol??1e-12)) throw new Error(`infeasible active bounds at slope ${i}: ${bounds.lower[i]} > ${bounds.upper[i]}`);
+  }
+  return bounds;
+}
+
+function boxStats(theta,bounds){
+  let maxViolation=0, active=0;
+  const byType={bounds:{count:bounds.items.length,active:0}};
+  for(let i=0;i<theta.length;i++){
+    if (Number.isFinite(bounds.lower[i]) && theta[i] < bounds.lower[i]) maxViolation=Math.max(maxViolation,bounds.lower[i]-theta[i]);
+    if (Number.isFinite(bounds.upper[i]) && theta[i] > bounds.upper[i]) maxViolation=Math.max(maxViolation,theta[i]-bounds.upper[i]);
+    if ((Number.isFinite(bounds.lower[i]) && Math.abs(theta[i]-bounds.lower[i])<1e-6) || (Number.isFinite(bounds.upper[i]) && Math.abs(theta[i]-bounds.upper[i])<1e-6)) active++;
+  }
+  byType.bounds.active=active;
+  return {maxViolation, active, byType};
+}
+function renderAutoParams(){
+  const el=$('autoParams'), auto=state.lastAuto; let html='';
+  if (auto.beamSP){
+    const info=auto.beamSP.info, st=info.stats || {maxViolation:0,active:0,byType:{}};
+    html += `<h3 style="font-size:14px;margin:10px 0 5px;">CD-HBEP: finite active-set Hermite beam projection</h3>`;
+    const solverLabel=escapeHtml((info.solverName || 'QP').replaceAll('Pang--Han','Pang–Han'));
+    html += `<div class="mini"><b>Solver.</b> ${solverLabel}. QP solves: ${info.solverQpSolves||0}; fast-path sweeps: ${info.solverIterations||0}; fallback calls: ${info.solverFallbackCount||0}. The normalized KKT residual is ${fmt(info.solverKkt||0,3)}, and the largest bound violation is ${fmt(st.maxViolation,3)}.</div>`;
+    const roundWord=info.roundsUsed===1?'round':'rounds';
+    html += `<div class="mini"><b>Projection.</b> The beam objective changes from ${fmt(info.unconstrainedBeamEnergy,5)} to ${fmt(info.beamEnergy,5)}. The endpoint-band tolerance ranges from ${fmt(info.epsRange.min,4)} to ${fmt(info.epsRange.max,4)}. The assembled box contains ${info.constraints.length} bound contributions; ${st.active} slopes lie on a bound after ${info.roundsUsed} outer activation ${roundWord}.</div>`;
+    html += `<div class="mini"><b>Guards.</b> Envelope: ${info.opts.over?'on':'off'}; reverse motion: ${info.opts.reverseGuard?'on':'off'}; chord side: ${info.opts.chordSide?'on':'off'}. Active envelope intervals: ${info.activeEnvelope.length?info.activeEnvelope.join(', '):'none'}. Active slope-box intervals: ${info.activeSlopeBox.length?info.activeSlopeBox.join(', '):'none'}. Active chord-side intervals: ${info.activeChordSide&&info.activeChordSide.length?info.activeChordSide.join(', '):'none'}.</div>`;
+    const relaxed=(info.chordSideSlack||[]).filter(s=>s.relaxed);
+    const analyticalSideFactor=info.bounds?.sideRelaxationAnalyticalFactor??1;
+    const sideFactor=info.bounds?.sideRelaxationFactor??analyticalSideFactor;
+    const sideLocal=info.opts.sideLocalFraction??0.20;
+    const sideUpper=sideLocal>0?Math.max(1,1/(3*sideLocal)):Infinity;
+    const factorNote=sideFactor>analyticalSideFactor+Number.EPSILON?` (rounding-safe applied factor ${fmt(sideFactor,5)})`:'';
+    html += `<div class="mini"><b>Chord-side feasibility.</b> The common factor is λ*=${fmt(analyticalSideFactor,5)}${factorNote}, with analytical upper bound ${Number.isFinite(sideUpper)?fmt(sideUpper,5):'∞'}. ${relaxed.length ? `Enlarged interval slacks: ${relaxed.map(s=>`e${s.e}: ${fmt(s.nominal,4)}→${fmt(s.effective,4)}`).join('; ')}.` : 'No slack enlargement was necessary.'}</div>`;
+    html += `<div class="mini">Exact interval certification constructs the outer active sets. Bezier control values certify the envelope bounds. A material handle excursion activates the same bounds before a wide turn develops. The reverse-motion test activates the sharp Hermite slope box only when reverse motion exceeds the interval tolerance. A wider threshold leaves isolated shallow reversals rounded. The chord-side guard activates only when locally convex or concave data depart excessively toward the curvature side of the chord.</div>`;
+    html += renderBars(info.thetaDelta,'dθ',COLORS.beamSP,0,null);
+    if ($('showSpBounds').checked){
+      html += '<div class="scrollbox" style="max-height:330px;margin-top:8px;"><table><thead><tr><th>i</th><th>x</th><th>θB beam</th><th>θ PCHIP</th><th>θ CD-HBEP</th><th>θ*−θB</th></tr></thead><tbody>';
+      for(let i=0;i<state.points.length;i++) html += `<tr><td>${i}</td><td>${fmt(state.points[i].x,4)}</td><td>${fmt(info.thetaBeam[i],5)}</td><td>${fmt(info.thetaPchip[i],5)}</td><td>${fmt(info.theta[i],5)}</td><td>${fmt(info.theta[i]-info.thetaBeam[i],5)}</td></tr>`;
+      html += '</tbody></table></div>';
+      html += `<div class="mini" style="margin-top:6px;">Slopes on an active bound: ${st.active} of ${state.points.length}.</div>`;
+      if (info.violations && info.violations.length) html += `<div class="mini" style="margin-top:6px;">activation log: ${info.violations.slice(0,8).map(v=>`${v.type} e${v.e} amount=${fmt(v.amount,3)}`).join('; ')}${info.violations.length>8?' ...':''}</div>`;
+    }
+  }
+  if (auto.thesis){ html += `<h3 style="font-size:14px;margin:10px 0 5px;">Thesis FEM</h3><div class="mini">ρ=${fmt(auto.thesis.rho,3)}, refined nodes=${auto.thesis.mesh.nodes.length}, reconstructed displacement nodes=${auto.thesis.mesh.unknown.length}</div>`; }
+  el.innerHTML=html;
+}
+
+
+
+// ---------- Lightweight benchmark utilities ----------
+function metricForEval(points, curveOrEval, count=700){
+  if (typeof curveOrEval !== 'function' && curveOrEval.metricsSupported===false){
+    throw new Error('These diagnostics require one cubic Hermite segment per data interval.');
+  }
+  const evalFn = (typeof curveOrEval === 'function') ? curveOrEval : curveOrEval.eval;
+  const slopes = (typeof curveOrEval === 'function') ? null : (curveOrEval.slopes || null);
+  const xs=makeGrid(points, count);
+  const ys=sampleCurve(evalFn, xs);
+  return computeDetailedMetrics(points, xs, ys, slopes);
+}
+function fallbackSlopesFromSamples(points, xs, ys){
+  // Fast fallback used only for methods that do not expose Hermite slopes.
+  const out=[];
+  for(const p of points){
+    let best=0, dist=Infinity;
+    for(let k=0;k<xs.length;k++){ const d=Math.abs(xs[k]-p.x); if(d<dist){ dist=d; best=k; } }
+    const k0=Math.max(0,best-1), k1=Math.min(xs.length-1,best+1);
+    const dx=xs[k1]-xs[k0];
+    out.push(dx>0 ? (ys[k1]-ys[k0])/dx : 0);
+  }
+  return out;
+}
+function hermiteValueAt(points, slopes, e, t){
+  const h=points[e+1].x-points[e].x;
+  const y0=points[e].y, y1=points[e+1].y;
+  const t2=t*t, t3=t2*t;
+  const H00=2*t3-3*t2+1;
+  const H10=t3-2*t2+t;
+  const H01=-2*t3+3*t2;
+  const H11=t3-t2;
+  return H00*y0 + h*H10*slopes[e] + H01*y1 + h*H11*slopes[e+1];
+}
+function hermiteDerivativeAt(points, slopes, e, t){
+  const h=points[e+1].x-points[e].x;
+  if(h<=0) return 0;
+  const y0=points[e].y, y1=points[e+1].y;
+  const t2=t*t;
+  return ((6*t2-6*t)*y0 + (-6*t2+6*t)*y1)/h + (3*t2-4*t+1)*slopes[e] + (3*t2-2*t)*slopes[e+1];
+}
+function metricChordSideSign(points,e){
+  return sc2LocalConvexitySign(points,e);
+}
+
+function metricPolynomialValue(coefficients,t){
+  let value=0;
+  for(let index=coefficients.length-1;index>=0;index--) value=value*t+coefficients[index];
+  return value;
+}
+function metricPolynomialIntegral(coefficients,a,b){
+  let integral=0;
+  for(let degree=0;degree<coefficients.length;degree++){
+    integral += coefficients[degree]*(Math.pow(b,degree+1)-Math.pow(a,degree+1))/(degree+1);
+  }
+  return integral;
+}
+function metricPositivePolynomialIntegral(coefficients,cuts){
+  const ordered=cuts.slice().sort((a,b)=>a-b).filter((value,index,array)=>index===0 || value-array[index-1]>64*Number.EPSILON);
+  let area=0;
+  for(let index=0;index<ordered.length-1;index++){
+    const a=ordered[index], b=ordered[index+1];
+    if(b<=a) continue;
+    if(metricPolynomialValue(coefficients,0.5*(a+b))>0){
+      area += Math.max(0,metricPolynomialIntegral(coefficients,a,b));
+    }
+  }
+  return area;
+}
+function metricQuadraticUnitRoots(coefficients){
+  const c0=coefficients[0], c1=coefficients[1], c2=coefficients[2];
+  const scale=Math.max(Math.abs(c0),Math.abs(c1),Math.abs(c2),Number.MIN_VALUE);
+  const coefficientTolerance=64*Number.EPSILON*scale;
+  const roots=[];
+  if(Math.abs(c2)<=coefficientTolerance){
+    if(Math.abs(c1)>coefficientTolerance) roots.push(-c0/c1);
+  } else {
+    let discriminant=c1*c1-4*c2*c0;
+    const discriminantTolerance=64*Number.EPSILON*(c1*c1+4*Math.abs(c2*c0));
+    if(discriminant>=-discriminantTolerance){
+      discriminant=Math.max(0,discriminant);
+      const rootDiscriminant=Math.sqrt(discriminant);
+      const q=-0.5*(c1+(c1>=0 ? rootDiscriminant : -rootDiscriminant));
+      if(q===0) roots.push(-c1/(2*c2));
+      else roots.push(q/c2,c0/q);
+    }
+  }
+  return roots.filter(root=>Number.isFinite(root) && root>0 && root<1)
+    .sort((a,b)=>a-b).filter((value,index,array)=>index===0 || value-array[index-1]>64*Number.EPSILON);
+}
+
+function computeDetailedMetrics(points, xs, ys, slopes=null){
+  // Comparative diagnostics for the manuscript.  These are soft metrics, not
+  // activation criteria.  They intentionally combine shape-safety, chordal
+  // chord deviation, length excess, monotone-speed deficit, and chord-side consistency.
+  let E_band_sum=0, E_band_count=0, M_chordRaw=0, A_chordRaw=0, normalizedCurveLen=0, normalizedPolyLen=0, A_mono=0, A_sideRaw=0;
+  const yVals=points.map(p=>p.y);
+  const yr=Math.max(...yVals)-Math.min(...yVals);
+  const yScale=Math.max(yr,1e-12);
+  const xSpan=Math.max(1e-12, points[points.length-1].x-points[0].x);
+  const slopeVals = (slopes && slopes.length===points.length) ? slopes : fallbackSlopesFromSamples(points,xs,ys);
+  const gaussT=[0.00529953250417503,0.0277124884633837,0.0671843988060841,0.122297795822499,0.191061877798678,0.270991611171386,0.359198224610371,0.452493745081181,0.547506254918819,0.640801775389629,0.729008388828614,0.808938122201322,0.877702204177501,0.932815601193916,0.972287511536616,0.994700467495825];
+  const gaussW=[0.013576229705877,0.0311267619693239,0.0475792558412464,0.0623144856277669,0.0747979944082884,0.0845782596975013,0.0913017075224618,0.0947253052275343,0.0947253052275343,0.0913017075224618,0.0845782596975013,0.0747979944082884,0.0623144856277669,0.0475792558412464,0.0311267619693239,0.013576229705877];
+  for(let e=0;e<points.length-1;e++){
+    const x0=points[e].x, x1=points[e+1].x, y0=points[e].y, y1=points[e+1].y;
+    const h=x1-x0;
+    if(h<=0) continue;
+    const dy=y1-y0, delta=dy/h, sig=Math.sign(delta);
+    const center=0.5*(y0+y1);
+    const bandRadius=Math.max(0.5*Math.abs(dy), 0.05*yScale);
+    const b1=y0+h*slopeVals[e]/3;
+    const b2=y1-h*slopeVals[e+1]/3;
+    const p1=(b1-center)/bandRadius, p2=(b2-center)/bandRadius;
+    E_band_sum += p1*p1 + p2*p2;
+    E_band_count += 2;
+
+    // Maximum chord deviation is evaluated analytically at endpoints and
+    // stationary points of the cubic chord deviation.
+    let cand={roots:[0,1]};
+    if(typeof sc2ChordDeviationCandidates==='function') cand=sc2ChordDeviationCandidates(points,slopeVals,e);
+    for(const t of cand.roots){
+      const dev = (typeof sc2ChordDeviationValue==='function') ? sc2ChordDeviationValue(points,slopeVals,e,t) : (hermiteValueAt(points,slopeVals,e,t)-((1-t)*y0+t*y1));
+      M_chordRaw=Math.max(M_chordRaw, Math.abs(dev));
+    }
+
+    const hNormalized=h/xSpan, dyNormalized=dy/yScale;
+    normalizedPolyLen += Math.sqrt(hNormalized*hNormalized+dyNormalized*dyNormalized);
+    const denom=Math.abs(delta)+0.05*Math.max(yScale/xSpan,1e-12);
+    const sideSign = metricChordSideSign(points,e);
+
+    // The chord deviation is a cubic polynomial with known endpoint roots.
+    // Split at its possible interior root and integrate each sign-consistent
+    // piece from the polynomial antiderivative.
+    const leftDifference=slopeVals[e]-delta;
+    const rightDifference=slopeVals[e+1]-delta;
+    const chordCoefficients=[0,h*leftDifference,h*(-2*leftDifference-rightDifference),h*(leftDifference+rightDifference)];
+    const chordCuts=[0,1];
+    const chordDenominator=leftDifference+rightDifference;
+    const chordScale=Math.max(Math.abs(leftDifference),Math.abs(rightDifference),Number.MIN_VALUE);
+    if(Math.abs(chordDenominator)>64*Number.EPSILON*chordScale){
+      const root=leftDifference/chordDenominator;
+      if(root>0 && root<1) chordCuts.push(root);
+    }
+    const negativeChordCoefficients=chordCoefficients.map(value=>-value);
+    A_chordRaw += h*(metricPositivePolynomialIntegral(chordCoefficients,chordCuts)+metricPositivePolynomialIntegral(negativeChordCoefficients,chordCuts));
+    if(sideSign!==0){
+      const sideCoefficients=chordCoefficients.map(value=>-sideSign*value);
+      A_sideRaw += h*metricPositivePolynomialIntegral(sideCoefficients,chordCuts);
+    }
+
+    // The monotone-speed deficit is the positive part of a quadratic.
+    if(sig!==0){
+      const derivativeCoefficients=[slopeVals[e],-4*slopeVals[e]-2*slopeVals[e+1]+6*delta,3*slopeVals[e]+3*slopeVals[e+1]-6*delta];
+      const deficitCoefficients=[1-sig*derivativeCoefficients[0]/denom,-sig*derivativeCoefficients[1]/denom,-sig*derivativeCoefficients[2]/denom];
+      const deficitCuts=[0,...metricQuadraticUnitRoots(deficitCoefficients),1];
+      A_mono += h*metricPositivePolynomialIntegral(deficitCoefficients,deficitCuts);
+    }
+
+    // Normalized curve length has no general elementary antiderivative for a
+    // cubic Hermite segment; a 16-point Gauss--Legendre rule evaluates it.
+    for(let q=0;q<gaussT.length;q++){
+      const t=gaussT[q], w=gaussW[q];
+      const der=hermiteDerivativeAt(points,slopeVals,e,t);
+      const normalizedDerivative=der*xSpan/yScale;
+      normalizedCurveLen += hNormalized*w*Math.sqrt(1+normalizedDerivative*normalizedDerivative);
+    }
+  }
+  const E_band = E_band_count>0 ? Math.sqrt(E_band_sum/E_band_count) : 0;
+  const M_chord=M_chordRaw/yScale;
+  const A_chord=A_chordRaw/(xSpan*yScale);
+  const R_len = normalizedPolyLen>0 ? Math.max(0, normalizedCurveLen/normalizedPolyLen - 1) : 0;
+  const A_side=A_sideRaw/(xSpan*yScale);
+  return {E_band, M_chord, A_chord, R_len, A_mono:A_mono/xSpan, A_side};
+}
+const BENCH_METRICS=['E_band','M_chord','A_chord','R_len','A_mono','A_side'];
+const BENCH_LABELS={'E_band':'E_band','M_chord':'M_chord','A_chord':'A_chord','R_len':'R_len','A_mono':'A_mono','A_side':'A_side'};
+function benchmarkRow(name, m){
+  return `<tr><td>${escapeHtml(name)}</td>${BENCH_METRICS.map(k=>`<td>${fmt(m[k]||0,4)}</td>`).join('')}</tr>`;
+}
+function benchmarkTable(headers, rows){
+  return `<table><thead><tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table>`;
+}
+function runAblationBenchmark(){
+  const pts=state.points;
+  const rows=[];
+  rows.push(benchmarkRow('beam only / NC-spline', metricForEval(pts, makeNaturalCubic(pts))));
+  function withGuards(over, reverse, side){
+    const ids=['spOver','spReverseGuard','spChordSide'];
+    const old=ids.map(id=>$(id) ? $(id).checked : null);
+    if($('spOver')) $('spOver').checked=over;
+    if($('spReverseGuard')) $('spReverseGuard').checked=reverse;
+    if($('spChordSide')) $('spChordSide').checked=side;
+    const out=computeBeamOnlySP(pts);
+    ids.forEach((id,i)=>{ if($(id) && old[i]!==null) $(id).checked=old[i]; });
+    return out;
+  }
+  rows.push(benchmarkRow('+ envelope guard', metricForEval(pts, withGuards(true,false,false))));
+  rows.push(benchmarkRow('+ envelope + reverse guard', metricForEval(pts, withGuards(true,true,false))));
+  rows.push(benchmarkRow('full CD-HBEP (+ chord-side)', metricForEval(pts, withGuards(true,true,true))));
+  $('benchmarkOutput').innerHTML = `<b>${tr('Ablation on current data','現在データでのablation')}</b>` + benchmarkTable(['variant',...BENCH_METRICS], rows);
+}
+function seededRandom(seed){
+  let x=seed>>>0;
+  return function(){ x=(1664525*x+1013904223)>>>0; return x/4294967296; };
+}
+
+const RANDOM_BASE_CATEGORIES=Object.freeze(['oscillatory','turn','wiggle','plateau']);
+const RANDOM_MIX_PROFILES=Object.freeze([
+  Object.freeze({name:'balanced',weights:Object.freeze([0.25,0.25,0.25,0.25])}),
+  Object.freeze({name:'oscillatory-dominant',weights:Object.freeze([0.76,0.08,0.08,0.08])}),
+  Object.freeze({name:'turn-dominant',weights:Object.freeze([0.08,0.76,0.08,0.08])}),
+  Object.freeze({name:'wiggle-dominant',weights:Object.freeze([0.08,0.08,0.76,0.08])}),
+  Object.freeze({name:'plateau-dominant',weights:Object.freeze([0.03,0.03,0.03,0.91])}),
+  Object.freeze({name:'oscillatory-turn',weights:Object.freeze([0.44,0.44,0.06,0.06])}),
+  Object.freeze({name:'oscillatory-wiggle',weights:Object.freeze([0.44,0.06,0.44,0.06])}),
+  Object.freeze({name:'turn-wiggle',weights:Object.freeze([0.06,0.44,0.44,0.06])}),
+  Object.freeze({name:'oscillatory-plateau',weights:Object.freeze([0.34,0.04,0.04,0.58])}),
+  Object.freeze({name:'turn-plateau',weights:Object.freeze([0.04,0.34,0.04,0.58])}),
+  Object.freeze({name:'wiggle-plateau',weights:Object.freeze([0.04,0.04,0.34,0.58])}),
+  Object.freeze({name:'plateau-accented',weights:Object.freeze([0.14,0.14,0.14,0.58])})
+]);
+function randomBenchmarkCategories(){ return [...RANDOM_BASE_CATEGORIES,'mix']; }
+function mixedBenchmarkWeights(rng,requestedProfile=null){
+  const profileIndex=Number.isInteger(requestedProfile)
+    ? ((requestedProfile%RANDOM_MIX_PROFILES.length)+RANDOM_MIX_PROFILES.length)%RANDOM_MIX_PROFILES.length
+    : Math.floor(rng()*RANDOM_MIX_PROFILES.length);
+  const profile=RANDOM_MIX_PROFILES[profileIndex];
+  const raw=profile.weights.map(weight=>weight*Math.exp(0.7*(rng()-0.5)));
+  const sum=raw.reduce((total,value)=>total+value,0);
+  return {profileIndex,profile:profile.name,weights:raw.map(value=>value/sum)};
+}
+
+const MANUSCRIPT_BENCHMARK_SETTINGS=Object.freeze({
+  randomSeed:123456,
+  randomCases:2000,
+  randomNMin:8,
+  randomNMax:20,
+  randomMixNMin:18,
+  randomMixNMax:36,
+  gallerySeed:987654,
+  timingSeed:246810,
+  timingSizes:Object.freeze([10,100,1000,5000,10000,50000,100000]),
+  timingRepeats:5,
+  knownSizes:Object.freeze([10,30,60,100,200,400,800]),
+  knownEvaluationSamples:12001,
+  stabilitySeed:314159265,
+  affineTrialsPerConfiguration:250,
+  conditioningTrialsPerRatio:500,
+  thresholdCandidateCases:2000,
+  thresholdSelectedCases:250,
+  affineScales:Object.freeze([1e-8,1e-6,1e-4,1e-2,1,1e2,1e4,1e6,1e8]),
+  originShiftFactors:Object.freeze([-1e8,-1e4,1e4,1e8]),
+  meshRatios:Object.freeze([1e4,1e8]),
+  thresholdPerturbations:Object.freeze([1e-12,1e-10,1e-8,1e-6]),
+  metricQuadrature:'exact piecewise-polynomial integration for accumulated chord and monotonicity diagnostics; 16-point Gauss-Legendre rule for normalized curve length'
+});
+function manuscriptBenchmarkSettings(){
+  return {
+    ...MANUSCRIPT_BENCHMARK_SETTINGS,
+    timingSizes:Array.from(MANUSCRIPT_BENCHMARK_SETTINGS.timingSizes),
+    knownSizes:Array.from(MANUSCRIPT_BENCHMARK_SETTINGS.knownSizes),
+    affineScales:Array.from(MANUSCRIPT_BENCHMARK_SETTINGS.affineScales),
+    originShiftFactors:Array.from(MANUSCRIPT_BENCHMARK_SETTINGS.originShiftFactors),
+    meshRatios:Array.from(MANUSCRIPT_BENCHMARK_SETTINGS.meshRatios),
+    thresholdPerturbations:Array.from(MANUSCRIPT_BENCHMARK_SETTINGS.thresholdPerturbations)
+  };
+}
+
+// ---------- Known-function accuracy benchmark ----------
+// These functions complement the discrete shape-stress cases. They are not
+// supplied to an interpolant; only their sampled values are supplied. The
+// analytic functions are retained solely to evaluate interpolation error.
+const smoothStep5 = u => {
+  const z=Math.max(0,Math.min(1,u));
+  return z*z*z*(10+z*(-15+6*z));
+};
+const smoothCompactBump = u => {
+  const z=Math.abs(u);
+  if(z>=1) return 0;
+  return Math.exp(1-1/(1-z*z));
+};
+const smoothLowerArc = x => 1-(Math.sqrt(1.21-(2*x-1)*(2*x-1))-Math.sqrt(0.21))/(1.1-Math.sqrt(0.21));
+const KNOWN_BENCHMARK_CASES = Object.freeze([
+  {
+    key:'smoothWave', label:'Smooth wave', regularity:'C-infinity', domain:[0,1],
+    formula:'sin(2*pi*x) + 0.2*sin(6*pi*x)',
+    evaluate:x=>Math.sin(2*Math.PI*x)+0.2*Math.sin(6*Math.PI*x)
+  },
+  {
+    key:'smoothArc', label:'Smooth arc with central lift', regularity:'C-infinity', domain:[0,1],
+    formula:'g_arc(x)+(1-g_arc(x))*b_c((x-0.5)/0.15)',
+    evaluate:x=>{
+      const arc=smoothLowerArc(x);
+      return arc+(1-arc)*smoothCompactBump((x-0.5)/0.15);
+    }
+  },
+  {
+    key:'localizedPeak', label:'Localized peak', regularity:'C-infinity', domain:[0,1],
+    formula:'exp(-45*(x-0.45)^2) + 0.08*x',
+    evaluate:x=>Math.exp(-45*(x-0.45)*(x-0.45))+0.08*x
+  },
+  {
+    key:'smoothPlateaus', label:'Smooth plateaus', regularity:'C2', domain:[0,1],
+    formula:'quintic transitions between three exact plateau levels',
+    evaluate:x=>{
+      if(x<=0.20) return 0;
+      if(x<0.35) return smoothStep5((x-0.20)/0.15);
+      if(x<=0.55) return 1;
+      if(x<0.70) return 1-0.65*smoothStep5((x-0.55)/0.15);
+      return 0.35;
+    }
+  },
+  {
+    key:'monotoneSigmoid', label:'Monotone sigmoid', regularity:'C-infinity', domain:[0,1],
+    formula:'0.5*(1 + tanh(8*(x-0.5))/tanh(4))',
+    evaluate:x=>0.5*(1+Math.tanh(8*(x-0.5))/Math.tanh(4))
+  },
+  {
+    key:'boundaryLayer', label:'Boundary layer', regularity:'C-infinity', domain:[0,1],
+    formula:'1 - expm1(100*x)/expm1(100)',
+    evaluate:x=>1-Math.expm1(100*x)/Math.expm1(100)
+  }
+]);
+function knownBenchmarkCases(){
+  return KNOWN_BENCHMARK_CASES.map(item=>({key:item.key,label:item.label,regularity:item.regularity,domain:item.domain.slice(),formula:item.formula}));
+}
+function knownBenchmarkDefinition(key){
+  const found=KNOWN_BENCHMARK_CASES.find(item=>item.key===key);
+  if(!found) throw new Error(`unknown benchmark function: ${key}`);
+  return found;
+}
+function knownBenchmarkValue(key,x){ return knownBenchmarkDefinition(key).evaluate(x); }
+function knownBenchmarkPoints(key,n,spacing='uniform'){
+  const definition=knownBenchmarkDefinition(key);
+  const count=Math.max(2,Math.floor(n));
+  const [a,b]=definition.domain;
+  const points=[];
+  for(let i=0;i<count;i++){
+    const u=i/(count-1);
+    const warped=spacing==='nonuniform' ? u+0.30*Math.sin(2*Math.PI*u)/(2*Math.PI) : u;
+    const x=a+(b-a)*warped;
+    points.push({x,y:definition.evaluate(x)});
+  }
+  return points;
+}
+function knownBenchmarkErrors(key,points,curveOrEval,count=12001){
+  const definition=knownBenchmarkDefinition(key);
+  const evalFn=typeof curveOrEval==='function' ? curveOrEval : curveOrEval.eval;
+  const samples=Math.max(1001,Math.floor(count));
+  const [a,b]=definition.domain;
+  let truthMin=Infinity,truthMax=-Infinity,maxError=0,errorIntegral=0,previousSquared=0;
+  for(let j=0;j<samples;j++){
+    const x=a+(b-a)*j/(samples-1);
+    const truth=definition.evaluate(x), approx=evalFn(x), error=Math.abs(approx-truth), squared=error*error;
+    if(!Number.isFinite(approx)) throw new Error(`nonfinite known-function value for ${key}`);
+    truthMin=Math.min(truthMin,truth); truthMax=Math.max(truthMax,truth); maxError=Math.max(maxError,error);
+    if(j>0) errorIntegral+=0.5*(previousSquared+squared)*(b-a)/(samples-1);
+    previousSquared=squared;
+  }
+  let hMax=0;
+  for(let i=0;i<points.length-1;i++) hMax=Math.max(hMax,points[i+1].x-points[i].x);
+  const scale=Math.max(truthMax-truthMin,1e-12);
+  return {eInf:maxError/scale,e2:Math.sqrt(errorIntegral/(b-a))/scale,hMax};
+}
+const KNOWN_BENCHMARK_API={knownBenchmarkCases,knownBenchmarkValue,knownBenchmarkPoints,knownBenchmarkErrors};
+
+// These exact functions are reserved for the independent activation-constant
+// hold-out.  They do not appear in the calibration suite or in the main
+// known-function comparison.
+const ACTIVATION_HOLDOUT_CASES=Object.freeze([
+  Object.freeze({key:'chirpedWave',label:'Chirped wave',domain:Object.freeze([0,1]),
+    formula:'sin(2*pi*x+3*pi*x^2)',evaluate:x=>Math.sin(2*Math.PI*x+3*Math.PI*x*x)}),
+  Object.freeze({key:'asymmetricPeaks',label:'Asymmetric signed peaks',domain:Object.freeze([0,1]),
+    formula:'0.75*exp(-80*(x-0.28)^2)-0.45*exp(-35*(x-0.72)^2)+0.1*x',
+    evaluate:x=>0.75*Math.exp(-80*(x-0.28)*(x-0.28))-0.45*Math.exp(-35*(x-0.72)*(x-0.72))+0.1*x}),
+  Object.freeze({key:'monotoneConcave',label:'Monotone concave profile',domain:Object.freeze([0,1]),
+    formula:'log(1+15*x)/log(16)',evaluate:x=>Math.log1p(15*x)/Math.log(16)}),
+  Object.freeze({key:'dampedWave',label:'Damped wave with trend',domain:Object.freeze([0,1]),
+    formula:'exp(-2*x)*sin(5*pi*x)+0.2*x',evaluate:x=>Math.exp(-2*x)*Math.sin(5*Math.PI*x)+0.2*x})
+]);
+function activationHoldoutCases(){
+  return ACTIVATION_HOLDOUT_CASES.map(item=>({key:item.key,label:item.label,domain:Array.from(item.domain),formula:item.formula}));
+}
+function activationHoldoutDefinition(key){
+  const found=ACTIVATION_HOLDOUT_CASES.find(item=>item.key===key);
+  if(!found) throw new Error(`unknown activation hold-out function: ${key}`);
+  return found;
+}
+function activationHoldoutPoints(key,n,spacing='uniform'){
+  const definition=activationHoldoutDefinition(key), count=Math.max(2,Math.floor(n));
+  const [a,b]=definition.domain, points=[];
+  for(let i=0;i<count;i++){
+    const u=i/(count-1), warped=spacing==='nonuniform'?u+0.22*Math.sin(2*Math.PI*u)/(2*Math.PI):u;
+    const x=a+(b-a)*warped;
+    points.push({x,y:definition.evaluate(x)});
+  }
+  return points;
+}
+function activationHoldoutErrors(key,points,curveOrEval,count=2001){
+  const definition=activationHoldoutDefinition(key), evalFn=typeof curveOrEval==='function'?curveOrEval:curveOrEval.eval;
+  const samples=Math.max(1001,Math.floor(count)), [a,b]=definition.domain;
+  let minimum=Infinity,maximum=-Infinity,maxError=0,errorIntegral=0,previousSquared=0;
+  for(let index=0;index<samples;index++){
+    const x=a+(b-a)*index/(samples-1), truth=definition.evaluate(x), approximation=evalFn(x);
+    const error=Math.abs(approximation-truth), squared=error*error;
+    if(!Number.isFinite(approximation)) throw new Error(`nonfinite activation hold-out value for ${key}`);
+    minimum=Math.min(minimum,truth); maximum=Math.max(maximum,truth); maxError=Math.max(maxError,error);
+    if(index>0) errorIntegral+=0.5*(previousSquared+squared)*(b-a)/(samples-1);
+    previousSquared=squared;
+  }
+  const scale=Math.max(maximum-minimum,1e-12);
+  return {eInf:maxError/scale,e2:Math.sqrt(errorIntegral/(b-a))/scale};
+}
+function activationBeamIntervention(curve){
+  const normalization=curve&&curve.info&&curve.info.normalization;
+  if(!normalization) throw new Error('CD-HBEP curve information is required');
+  const xScale=Math.max(Math.abs(normalization.xScale),Number.MIN_VALUE);
+  const yScale=Math.max(Math.abs(normalization.yScale),Number.MIN_VALUE);
+  const energyScale=(yScale*yScale)/(xScale*xScale*xScale);
+  const excess=(curve.info.beamEnergy-curve.info.unconstrainedBeamEnergy)/energyScale;
+  return Math.sqrt(Math.max(0,excess));
+}
+const ACTIVATION_VALIDATION_API={activationParameterDefinitions,activationReferenceConfiguration,
+  activationValidationSettings,digitallyShiftedSobolPoints,activationConfigurationFromUnitPoint,
+  activationHoldoutCases,activationHoldoutPoints,activationHoldoutErrors,activationBeamIntervention};
+
+function randomBenchmarkPoints(rng, n, category='oscillatory', spacing='nonuniform', options=null){
+  const xs=[];
+  if (spacing==='uniform'){
+    for(let i=0;i<n;i++) xs.push(i);
+  } else {
+    xs.push(0);
+    for(let i=1;i<n;i++) xs.push(xs[xs.length-1]+0.35+1.4*rng());
+  }
+  if(category==='mix'){
+    const requestedProfile=options&&Number.isInteger(options.mixProfileIndex)?options.mixProfileIndex:null;
+    const mixture=mixedBenchmarkWeights(rng,requestedProfile);
+    const components=RANDOM_BASE_CATEGORIES.map(baseCategory=>{
+      const values=randomBenchmarkPoints(rng,n,baseCategory,'uniform').map(point=>point.y);
+      const mean=values.reduce((total,value)=>total+value,0)/values.length;
+      const range=Math.max(...values)-Math.min(...values);
+      const scale=Math.max(range,1e-12);
+      return values.map(value=>(value-mean)/scale);
+    });
+    const amplitude=0.8+0.8*rng();
+    const points=xs.map((x,index)=>({
+      x,
+      y:amplitude*mixture.weights.reduce((total,weight,component)=>total+weight*components[component][index],0)
+    }));
+    Object.defineProperty(points,'mixWeights',{value:mixture.weights.slice(),enumerable:false});
+    Object.defineProperty(points,'mixProfile',{value:mixture.profile,enumerable:false});
+    Object.defineProperty(points,'mixProfileIndex',{value:mixture.profileIndex,enumerable:false});
+    return points;
+  }
+  const pts=[];
+  const xmax=Math.max(1,xs[xs.length-1]);
+  const phase1=2*Math.PI*rng(), phase2=2*Math.PI*rng(), phase3=2*Math.PI*rng();
+  const c2=0.50+0.08*(rng()-0.5);
+  const logistic=(uu,c,s)=>1/(1+Math.exp(-s*(uu-c)));
+  let plateauValues=null;
+  if(category==='plateau'){
+    // Generate genuine plateaus rather than a monotone sum of logistics.
+    // Every run has at least two samples, all levels are distinct, and the
+    // rank pattern contains a direction reversal so the case is not monotone.
+    const levelCount=(n>=12 && rng()<0.6) ? 4 : 3;
+    const lengths=Array(levelCount).fill(2);
+    for(let extra=n-2*levelCount;extra>0;extra--) lengths[Math.floor(rng()*levelCount)]++;
+    const patterns=levelCount===4
+      ? [[0,3,1,2],[3,0,2,1],[1,3,0,2],[2,0,3,1]]
+      : [[0,2,1],[2,0,1],[1,0,2],[1,2,0]];
+    const ranks=patterns[Math.floor(rng()*patterns.length)];
+    const base=-0.25+0.5*rng();
+    const levelStep=0.45+0.25*rng();
+    plateauValues=[];
+    for(let run=0;run<levelCount;run++){
+      const level=base+levelStep*ranks[run];
+      for(let k=0;k<lengths[run];k++) plateauValues.push(level);
+    }
+  }
+  let y=0;
+  for(let i=0;i<n;i++){
+    const u=xs[i]/xmax;
+    if(category==='oscillatory'){
+      y = 0.95*Math.sin(7.2*Math.PI*u + phase1)
+        + 0.55*Math.sin(15.0*Math.PI*u + phase2)
+        + 0.18*Math.sin(23.0*Math.PI*u + phase3)
+        + 0.12*(rng()-0.5);
+    } else if(category==='turn'){
+      y = 1.15*Math.sin(2.4*Math.PI*u + phase1) + 0.38*Math.sin(6.2*Math.PI*u + phase2) + 0.18*(rng()-0.5);
+    } else if(category==='wiggle'){
+      const trend=0.95*u + 0.30*logistic(u,c2,10+4*rng());
+      y = trend + 0.26*Math.sin(5.5*Math.PI*u + phase1) + 0.12*Math.sin(13.5*Math.PI*u + phase2) + 0.10*(rng()-0.5);
+    } else if(category==='plateau'){
+      y = plateauValues[i];
+    } else {
+      y = 1.15*Math.sin(2*Math.PI*u) + 0.15*(rng()-0.5);
+    }
+    pts.push({x:xs[i], y});
+  }
+  return pts;
+}
+
+// Deterministic examples that expose the distinct role of each outer guard.
+// The random cases retain their identifiers in the fixed 2,000-case benchmark;
+// the Arc example comes from the manuscript's discrete data collection.
+const GUARD_MOTIVATION_DEFINITIONS=Object.freeze([
+  Object.freeze({key:'envelope-flat-runs',guard:'envelope',label:'Separated flat runs',
+    source:'random',spacing:'nonuniform',category:'plateau',caseIndex:125,focusInterval:2}),
+  Object.freeze({key:'envelope-alternating',guard:'envelope',label:'Alternating values',
+    source:'random',spacing:'nonuniform',category:'oscillatory',caseIndex:94,focusInterval:1}),
+  Object.freeze({key:'reverse-largest-increase',guard:'reverse',label:'Trend with superposed wiggles',
+    source:'random',spacing:'nonuniform',category:'wiggle',caseIndex:152,focusInterval:9}),
+  Object.freeze({key:'reverse-only-turn',guard:'reverse',label:'Broad turn',
+    source:'random',spacing:'nonuniform',category:'turn',caseIndex:193,focusInterval:17}),
+  Object.freeze({key:'side-arc',guard:'side',label:'Arc data',
+    source:'example',exampleKey:'turn',focusInterval:8}),
+  Object.freeze({key:'side-largest-change',guard:'side',label:'Alternating values',
+    source:'random',spacing:'nonuniform',category:'oscillatory',caseIndex:162,focusInterval:12})
+]);
+function guardMotivationCaseDefinitions(){
+  return GUARD_MOTIVATION_DEFINITIONS.map(item=>({...item}));
+}
+function guardMotivationCases(){
+  const definitions=guardMotivationCaseDefinitions();
+  const requested=new Map(definitions.filter(item=>item.source==='random')
+    .map(item=>[`${item.spacing}/${item.category}/${item.caseIndex}`,item]));
+  const selected=new Map();
+  const settings=manuscriptBenchmarkSettings();
+  const categories=randomBenchmarkCategories();
+  const spacings=['uniform','nonuniform'];
+  const perGroup=Math.floor(settings.randomCases/(categories.length*spacings.length));
+  const rng=seededRandom(settings.randomSeed);
+  for(const spacing of spacings){
+    for(const category of categories){
+      for(let caseIndex=0;caseIndex<perGroup;caseIndex++){
+        const nMin=category==='mix'?settings.randomMixNMin:settings.randomNMin;
+        const nMax=category==='mix'?settings.randomMixNMax:settings.randomNMax;
+        const n=nMin+Math.floor(rng()*(nMax-nMin+1));
+        const points=randomBenchmarkPoints(rng,n,category,spacing);
+        const id=`${spacing}/${category}/${caseIndex}`;
+        if(requested.has(id)) selected.set(id,points.map(point=>({...point})));
+      }
+    }
+  }
+  return definitions.map(item=>{
+    const points=item.source==='example'
+      ? parseData(EXAMPLES[item.exampleKey])
+      : selected.get(`${item.spacing}/${item.category}/${item.caseIndex}`);
+    if(!points) throw new Error(`guard motivation case not found: ${item.key}`);
+    return {...item,points:points.map(point=>({...point}))};
+  });
+}
+const GUARD_MOTIVATION_API={guardMotivationCaseDefinitions,guardMotivationCases};
+
+function timingBenchmarkDataSets(rng,n){
+  const dataSets=KNOWN_BENCHMARK_CASES.map(item=>({
+    key:`known-${item.key}`,
+    label:item.label,
+    family:'continuous',
+    spacing:'nonuniform',
+    points:knownBenchmarkPoints(item.key,n,'nonuniform')
+  }));
+  for(const spacing of ['uniform','nonuniform']){
+    for(const category of ['oscillatory','turn','wiggle','plateau']){
+      dataSets.push({
+        key:`discrete-${spacing}-${category}`,
+        label:`${spacing} ${category}`,
+        family:'discrete',
+        spacing,
+        points:randomBenchmarkPoints(rng,n,category,spacing)
+      });
+    }
+  }
+  return dataSets;
+}
+function methodEvalForBenchmark(key, pts){
+  if(key==='linear') return {eval:x=>linearEval(pts,x)};
+  if(key==='cubic') return makeNaturalCubic(pts);
+  if(key==='hanGuo') return makeHanGuoMDO(pts);
+  if(key==='pchip') return makePchip(pts);
+  if(key==='hyman') return makeHymanFiltered(pts);
+  if(key==='dehCubic') return makeDehCubicMonotone(pts);
+  if(key==='akima') return makeAkima(pts,false);
+  if(key==='makima') return makeAkima(pts,true);
+  if(key==='thesisFEM') return computeThesisFEM(pts);
+  if(key==='beamSP') return computeBeamOnlySP(pts);
+  return null;
+}
+function runExampleMetricsBenchmark(){
+  const exampleItems=[
+    ['surge', 'Surge', EXAMPLES.smooth],
+    ['peak', 'Peak', EXAMPLES.mono],
+    ['hump', 'Hump', EXAMPLES.osc],
+    ['arc', 'Arc', EXAMPLES.turn],
+    ['oscillatory', 'Oscillatory', EXAMPLES.wiggle],
+    ['turn', 'Turn', EXAMPLES.plateau],
+    ['wiggle', 'Wiggle', EXAMPLES.akima1970],
+    ['plateau', 'Plateau', EXAMPLES.dehTitanium]
+  ];
+  const methodItems=MANUSCRIPT_METHOD_ORDER.map(key=>METHOD_META.find(method=>method.key===key));
+  const totals={}; for(const m of methodItems){ totals[m.key]={}; for(const k of BENCH_METRICS) totals[m.key][k]=0; }
+  const rows=[];
+  for(const [caseKey, caseLabel, dataText] of exampleItems){
+    const pts=parseData(dataText);
+    rows.push(`<tr><td colspan="${2+BENCH_METRICS.length}"><b>${escapeHtml(caseLabel)}</b></td></tr>`);
+    for(const m of methodItems){
+      let mt=null;
+      try{
+        const curve=methodEvalForBenchmark(m.key, pts);
+        mt=metricForEval(pts, curve, Number(getElValue('evalSamples',900))||900);
+        for(const k of BENCH_METRICS) totals[m.key][k]+=mt[k]||0;
+      }catch(e){ mt={}; for(const k of BENCH_METRICS) mt[k]=NaN; }
+      rows.push(`<tr><td></td><td>${methodLabel(m)}</td>${BENCH_METRICS.map(k=>`<td>${fmt(mt[k]||0,4)}</td>`).join('')}</tr>`);
+    }
+  }
+  rows.push(`<tr><td colspan="${2+BENCH_METRICS.length}"><b>average</b></td></tr>`);
+  for(const m of methodItems){
+    rows.push(`<tr><td></td><td>${methodLabel(m)}</td>${BENCH_METRICS.map(k=>`<td>${fmt((totals[m.key][k]||0)/exampleItems.length,4)}</td>`).join('')}</tr>`);
+  }
+  $('benchmarkOutput').innerHTML = `<b>${tr('Eight-case manuscript metrics','8ケース論文用metrics')}</b><div>${tr('Six dimensionless shape diagnostics are reported. Smaller values have metric-specific meanings and do not necessarily imply greater accuracy.','6つの無次元shape診断指標を示します。小さい値の意味は指標ごとに異なり、必ずしも精度が高いことを意味しません。')}</div>` + benchmarkTable(['case','method',...BENCH_METRICS.map(key=>BENCH_LABELS[key]||key)], rows);
+}
+
+function runRandomBenchmark(){
+  const settings=manuscriptBenchmarkSettings();
+  const cats=randomBenchmarkCategories();
+  const spacings=['uniform','nonuniform'];
+  const groupCount=cats.length*spacings.length;
+  const requested=Math.max(groupCount, Math.min(10000, Number($('benchCases').value)||settings.randomCases));
+  const perGroup=Math.max(1, Math.floor(requested/groupCount));
+  const total=perGroup*groupCount;
+  const seedValue=Number($('benchRandomSeed').value);
+  const seed=(Number.isFinite(seedValue)?seedValue:settings.randomSeed)>>>0;
+  const requestedMin=Math.max(8,Math.floor(Number($('benchNMin').value)||settings.randomNMin));
+  const requestedMax=Math.max(requestedMin,Math.floor(Number($('benchNMax').value)||settings.randomNMax));
+  const requestedMixMin=Math.max(8,Math.floor(Number($('benchMixNMin').value)||settings.randomMixNMin));
+  const requestedMixMax=Math.max(requestedMixMin,Math.floor(Number($('benchMixNMax').value)||settings.randomMixNMax));
+  const rng=seededRandom(seed);
+  const methods=manuscriptMethodPairs();
+  const distributions={}, successes={}, failures={};
+  let solverFallbacks=0, solverQpSolves=0, relaxedSideConstructions=0, relaxedSideIntervals=0,
+    maximumAnalyticalSideFactor=1;
+  for(const [name] of methods){
+    distributions[name]={}; for(const k of BENCH_METRICS) distributions[name][k]=[];
+    successes[name]=0; failures[name]=0;
+  }
+  for(const spacing of spacings){
+    for(const cat of cats){
+      for(let c=0;c<perGroup;c++){
+        const nMin=cat==='mix'?requestedMixMin:requestedMin;
+        const nMax=cat==='mix'?requestedMixMax:requestedMax;
+        const n=nMin+Math.floor(rng()*(nMax-nMin+1));
+        const pts=randomBenchmarkPoints(rng,n,cat,spacing);
+        for(const [name, maker] of methods){
+          try {
+            const curve=maker(pts);
+            if(name==='CD-HBEP'){
+              solverFallbacks+=curve.info.solverFallbackCount;
+              solverQpSolves+=curve.info.solverQpSolves;
+              const analyticalFactor=curve.info.bounds.sideRelaxationAnalyticalFactor??1;
+              relaxedSideConstructions+=Number(analyticalFactor>1+1e-12);
+              relaxedSideIntervals+=curve.info.chordSideSlack.filter(item=>item.relaxed).length;
+              maximumAnalyticalSideFactor=Math.max(maximumAnalyticalSideFactor,analyticalFactor);
+            }
+            const metrics=metricForEval(pts, curve, 500);
+            for(const key of BENCH_METRICS) distributions[name][key].push(metrics[key]);
+            successes[name]++;
+          } catch(e){
+            failures[name]++;
+            console.error('random benchmark method failed', name, e);
+          }
+        }
+      }
+    }
+  }
+  function benchmarkQuantile(values,q){
+    const sorted=values.slice().sort((a,b)=>a-b);
+    const position=q*(sorted.length-1), lo=Math.floor(position), hi=Math.ceil(position);
+    return lo===hi ? sorted[lo] : sorted[lo]+(position-lo)*(sorted[hi]-sorted[lo]);
+  }
+  const medianRows=[], q95Rows=[];
+  for(const [name] of methods){
+    if(!successes[name]) throw new Error(`Random benchmark failed for every ${name} case.`);
+    medianRows.push(`<tr><td>${name}</td>${BENCH_METRICS.map(k=>`<td>${fmt(benchmarkQuantile(distributions[name][k],0.5),4)}</td>`).join('')}<td>${failures[name]}</td></tr>`);
+    q95Rows.push(`<tr><td>${name}</td>${BENCH_METRICS.map(k=>`<td>${fmt(benchmarkQuantile(distributions[name][k],0.95),4)}</td>`).join('')}<td>${failures[name]}</td></tr>`);
+  }
+  const headers=['method',...BENCH_METRICS.map(key=>BENCH_LABELS[key]||key),'failures'];
+  $('benchmarkOutput').innerHTML = `<b>${tr('Seeded random benchmark','seeded random benchmark')}</b><div>${total} cases; seed=${seed}; base-class N=${requestedMin}--${requestedMax}; mixed-class N=${requestedMixMin}--${requestedMixMax}; uniform and nonuniform knots; five data classes including twelve mixture profiles; ${perGroup} cases per class--spacing group. CD-HBEP fallback calls=${solverFallbacks} across ${solverQpSolves} QP solves. Common chord-side relaxation occurred in ${relaxedSideConstructions} constructions and affected ${relaxedSideIntervals} active interval bounds; maximum analytical factor=${fmt(maximumAnalyticalSideFactor,6)}. Failures are reported explicitly.</div><div style="margin-top:6px"><b>median</b></div>` + benchmarkTable(headers, medianRows) + `<div style="margin-top:8px"><b>95th percentile</b></div>` + benchmarkTable(headers, q95Rows);
+}
+function runTimingBenchmark(){
+  const settings=manuscriptBenchmarkSettings();
+  const seedValue=Number($('benchTimingSeed').value);
+  const seed=(Number.isFinite(seedValue)?seedValue:settings.timingSeed)>>>0;
+  const repeats=Math.max(1,Math.min(20,Math.floor(Number($('benchTimingRepeats').value)||settings.timingRepeats)));
+  const rng=seededRandom(seed);
+  const ns=settings.timingSizes;
+  const methods=manuscriptMethodPairs();
+  const rows=[];
+  let solverFallbacks=0, solverQpSolves=0, solverConstructions=0;
+  for(const n of ns){
+    const dataSets=timingBenchmarkDataSets(rng,n);
+    const timings=[];
+    for(const [name,maker] of methods){
+      const dataMedians=[];
+      for(const dataSet of dataSets){
+        const pts=dataSet.points;
+        maker(pts);
+        const samples=[];
+        for(let repeat=0;repeat<repeats;repeat++){
+          const start=performance.now(), curve=maker(pts); samples.push(performance.now()-start);
+          if(name==='CD-HBEP'){
+            solverConstructions++;
+            solverFallbacks+=curve.info.solverFallbackCount;
+            solverQpSolves+=curve.info.solverQpSolves;
+          }
+        }
+        samples.sort((a,b)=>a-b);
+        const middle=Math.floor(samples.length/2);
+        dataMedians.push(samples.length%2 ? samples[middle] : 0.5*(samples[middle-1]+samples[middle]));
+      }
+      dataMedians.sort((a,b)=>a-b);
+      const quantile=q=>{
+        const position=q*(dataMedians.length-1), lo=Math.floor(position), hi=Math.ceil(position);
+        return lo===hi ? dataMedians[lo] : dataMedians[lo]+(position-lo)*(dataMedians[hi]-dataMedians[lo]);
+      };
+      timings.push({median:quantile(0.5),q1:quantile(0.25),q3:quantile(0.75)});
+    }
+    rows.push(`<tr><td>${n}</td>${timings.map(item=>`<td>${fmt(item.median,3)} [${fmt(item.q1,3)}, ${fmt(item.q3,3)}]</td>`).join('')}</tr>`);
+  }
+  $('benchmarkOutput').innerHTML = `<b>${tr('Manuscript-condition timing in this browser','論文条件によるブラウザ内timing')}</b><div>seed=${seed}; six continuous and eight scalable discrete data sets per N; one warm-up call per data set; median of ${repeats} measured constructions. CD-HBEP fallback calls=${solverFallbacks} across ${solverQpSolves} QP solves in ${solverConstructions} measured constructions. Cells report the median and [Q1, Q3] across the 14 data-set medians.</div>` + benchmarkTable(['N',...methods.map(([name])=>`${name} ms`)], rows);
+}
+
+
+// ---------- Fast CD-HBEP tridiagonal active-set override ----------
+
+// Faster exact envelope violation certification.  The previous exploratory
+// version also computed an integrated envelope excess on 24 samples, but that
+// quantity is not used by the active-set decision.  For a cubic Hermite segment,
+// checking endpoints and derivative roots is sufficient to find the maximum
+// envelope violation exactly.
+function sc2EnvelopeViolation(points, theta, e, opts){
+  const eps=sc2IntervalTol(points,e,opts);
+  const lo=Math.min(points[e].y,points[e+1].y)-eps;
+  const hi=Math.max(points[e].y,points[e+1].y)+eps;
+  const cache=opts._sc2Cache||sc2PrepareData(points), h=cache.h[e];
+  const candidates=[0,1,...derivativeRootCandidates(points,theta,e)];
+  let amount=0, tBest=0, kind=null;
+  for(const t of candidates){
+    const val=valueAtInterval(points,theta,e,t);
+    if(val<lo && lo-val>amount){ amount=lo-val; tBest=t; kind='low'; }
+    if(val>hi && val-hi>amount){ amount=val-hi; tBest=t; kind='high'; }
+  }
+  // Handle excursion in the Bezier representation.  This is not a new
+  // constraint type: it only activates the existing Bezier envelope bound when
+  // the Hermite handles themselves show a material tendency to pull the curve
+  // outside the endpoint band.  It helps reduce wide turns without using the
+  // stronger monotonicity slope box.
+  const b1=points[e].y + h*theta[e]/3;
+  const b2=points[e+1].y - h*theta[e+1]/3;
+  let handleAmount=0, handleKind=null;
+  for(const [name,val] of [['B1',b1],['B2',b2]]){
+    if(val<lo && lo-val>handleAmount){ handleAmount=lo-val; handleKind=name+' low'; }
+    if(val>hi && val-hi>handleAmount){ handleAmount=val-hi; handleKind=name+' high'; }
+  }
+  return {amount,t:tBest,kind,area:0,handleAmount,handleKind};
+}
+// This block overrides the exploratory dense/coordinate implementation above.
+// The usual path applies block tridiagonal solves and KKT-based bound updates.
+// If that path reaches its sweep cap without a residual certificate, a
+// Pang--Han parametric principal pivoting solve supplies the guaranteed path.
+function triZeros(n){ return {lower:Array(Math.max(0,n-1)).fill(0), diag:Array(n).fill(0), upper:Array(Math.max(0,n-1)).fill(0)}; }
+function triClone(T){ return {lower:T.lower.slice(), diag:T.diag.slice(), upper:T.upper.slice()}; }
+function triMatVecArrays(lower,diag,upper,x){
+  const n=diag.length, y=Array(n).fill(0);
+  for(let i=0;i<n;i++){
+    y[i]+=diag[i]*x[i];
+    if(i>0) y[i]+=lower[i-1]*x[i-1];
+    if(i<n-1) y[i]+=upper[i]*x[i+1];
+  }
+  return y;
+}
+function triObjectiveArrays(lower,diag,upper,q,x){
+  let v=0;
+  for(let i=0;i<x.length;i++) v += 0.5*diag[i]*x[i]*x[i] + q[i]*x[i];
+  for(let i=0;i<x.length-1;i++) v += upper[i]*x[i]*x[i+1];
+  return v;
+}
+function assembleBeamSlopeTri(points){
+  const cache=sc2PrepareData(points), n=points.length, T=triZeros(n), g=Array(n).fill(0);
+  for(let e=0;e<n-1;e++){
+    const h=cache.h[e];
+    const yi=points[e].y, yj=points[e+1].y;
+    const invh=1/h;
+    T.diag[e]+=4*invh; T.diag[e+1]+=4*invh;
+    T.upper[e]+=2*invh; T.lower[e]+=2*invh;
+    const gi=6*(yi-yj)/(h*h);
+    g[e]+=gi; g[e+1]+=gi;
+  }
+  return {T,g};
+}
+function solveTridiagonalArrays(lower,diag,upper,rhs){ return solveTridiagonalSystem(lower,diag,upper,rhs); }
+function solveTridiagonalInPlace(lower,diag,upper,rhs){
+  const n=diag.length;
+  if(!n) return rhs;
+  for(let i=1;i<n;i++){
+    const pivot=diag[i-1];
+    if(!Number.isFinite(pivot)||pivot===0) throw new Error(`invalid tridiagonal pivot at ${i-1}`);
+    const factor=lower[i-1]/pivot;
+    diag[i]-=factor*upper[i-1]; rhs[i]-=factor*rhs[i-1];
+  }
+  const last=diag[n-1];
+  if(!Number.isFinite(last)||last===0) throw new Error(`invalid tridiagonal pivot at ${n-1}`);
+  rhs[n-1]/=last;
+  for(let i=n-2;i>=0;i--){
+    const pivot=diag[i];
+    if(!Number.isFinite(pivot)||pivot===0) throw new Error(`invalid tridiagonal pivot at ${i}`);
+    rhs[i]=(rhs[i]-upper[i]*rhs[i+1])/pivot;
+  }
+  return rhs;
+}
+function solveFreeBlocksTriArrays(T,q,state,x){
+  const n=q.length;
+  for(let s=0;s<n;){
+    while(s<n && state[s]!==0) s++;
+    if(s>=n) break;
+    let e=s;
+    while(e+1<n && state[e+1]===0) e++;
+    const m=e-s+1;
+    const lo=Array(Math.max(0,m-1)).fill(0), di=Array(m).fill(0), up=Array(Math.max(0,m-1)).fill(0), rhs=Array(m).fill(0);
+    for(let k=0;k<m;k++){
+      const i=s+k;
+      di[k]=T.diag[i];
+      rhs[k]=-q[i];
+      if(i>0 && state[i-1]!==0) rhs[k]-=T.lower[i-1]*x[i-1];
+      if(i<n-1 && state[i+1]!==0) rhs[k]-=T.upper[i]*x[i+1];
+      if(k>0) lo[k-1]=T.lower[i-1];
+      if(k<m-1) up[k]=T.upper[i];
+    }
+    solveTridiagonalInPlace(lo,di,up,rhs);
+    for(let k=0;k<m;k++) x[s+k]=rhs[k];
+    s=e+1;
+  }
+}
+function boxQpResiduals(T,q,lower,upper,x,opts={}){
+  const primalTol=opts.primalTol ?? 1e-11;
+  const equalityTol=opts.boundFeasTol ?? 1e-12;
+  const qx=triMatVecArrays(T.lower,T.diag,T.upper,x), grad=qx.map((v,i)=>v+q[i]);
+  let kktScale=1;
+  for(let i=0;i<x.length;i++) kktScale=Math.max(kktScale,Math.abs(qx[i]),Math.abs(q[i]));
+  let maxRawPrimalViolation=0, primalScale=1, maxRawKktViolation=0, activeBounds=0;
+  for(let i=0;i<x.length;i++){
+    primalScale=Math.max(primalScale,Math.abs(x[i]));
+    if(Number.isFinite(lower[i])){ maxRawPrimalViolation=Math.max(maxRawPrimalViolation,lower[i]-x[i]); primalScale=Math.max(primalScale,Math.abs(lower[i])); }
+    if(Number.isFinite(upper[i])){ maxRawPrimalViolation=Math.max(maxRawPrimalViolation,x[i]-upper[i]); primalScale=Math.max(primalScale,Math.abs(upper[i])); }
+    const atLower=Number.isFinite(lower[i]) && x[i]<=lower[i]+primalTol;
+    const atUpper=Number.isFinite(upper[i]) && x[i]>=upper[i]-primalTol;
+    if(atLower||atUpper) activeBounds++;
+    if(atLower&&atUpper&&Math.abs(upper[i]-lower[i])<=equalityTol) continue;
+    if(atLower) maxRawKktViolation=Math.max(maxRawKktViolation,Math.max(0,-grad[i]));
+    else if(atUpper) maxRawKktViolation=Math.max(maxRawKktViolation,Math.max(0,grad[i]));
+    else maxRawKktViolation=Math.max(maxRawKktViolation,Math.abs(grad[i]));
+  }
+  maxRawPrimalViolation=Math.max(0,maxRawPrimalViolation);
+  return {maxPrimalViolation:maxRawPrimalViolation/primalScale,maxRawPrimalViolation,primalScale,
+    maxKktViolation:maxRawKktViolation/kktScale,maxRawKktViolation,kktScale,activeBounds};
+}
+function solveBoxQPBlockActiveSet(T,q,lower,upper,startTheta=null,opts={}){
+  const n=q.length;
+  const l=lower.slice(), u=upper.slice();
+  const boundFeasTol=opts.boundFeasTol ?? 1e-12;
+  let hasBounds=false;
+  for(let i=0;i<n;i++){
+    if(l[i]>u[i]+boundFeasTol) throw new Error(`infeasible box at slope ${i}: ${l[i]} > ${u[i]}`);
+    if(Number.isFinite(l[i])||Number.isFinite(u[i])) hasBounds=true;
+  }
+  if(!hasBounds&&startTheta){
+    const residuals=boxQpResiduals(T,q,l,u,startTheta,opts);
+    return {theta:startTheta.slice(),objective:triObjectiveArrays(T.lower,T.diag,T.upper,q,startTheta),iterations:0,
+      activeBounds:residuals.activeBounds,maxKktViolation:residuals.maxKktViolation,maxRawKktViolation:residuals.maxRawKktViolation,
+      maxPrimalViolation:residuals.maxPrimalViolation,maxRawPrimalViolation:residuals.maxRawPrimalViolation,repairedBounds:0,converged:true};
+  }
+  let x;
+  try { x=startTheta ? startTheta.slice() : solveTridiagonalArrays(T.lower,T.diag,T.upper,q.map(v=>-v)); }
+  catch(e){ x=startTheta ? startTheta.slice() : Array(n).fill(0); }
+  const state=Array(n).fill(0); // 0 free, -1 lower, +1 upper, 2 fixed equality
+  const primalTol=opts.primalTol ?? 1e-11;
+  const kktTol=opts.kktTol ?? 1e-9;
+  function setStateFromX(){
+    for(let i=0;i<n;i++){
+      if(Number.isFinite(l[i]) && Number.isFinite(u[i]) && Math.abs(u[i]-l[i])<=1e-12){ state[i]=2; x[i]=0.5*(l[i]+u[i]); }
+      else if(Number.isFinite(l[i]) && x[i] <= l[i]+primalTol){ state[i]=-1; x[i]=l[i]; }
+      else if(Number.isFinite(u[i]) && x[i] >= u[i]-primalTol){ state[i]=1; x[i]=u[i]; }
+      else { state[i]=0; x[i]=clampToBoundsValue(x[i],l[i],u[i]); }
+    }
+  }
+  setStateFromX();
+  let outer=0;
+  const maxOuter=opts.maxFastSweeps ?? 4*n+10;
+  for(; outer<maxOuter; outer++){
+    for(let i=0;i<n;i++){ if(state[i]===-1) x[i]=l[i]; else if(state[i]===1) x[i]=u[i]; else if(state[i]===2) x[i]=0.5*(l[i]+u[i]); }
+    solveFreeBlocksTriArrays(T,q,state,x);
+    let changed=false;
+    for(let i=0;i<n;i++){
+      if(state[i]!==0) continue;
+      if(Number.isFinite(l[i]) && x[i] < l[i]-primalTol){ x[i]=l[i]; state[i]=-1; changed=true; }
+      else if(Number.isFinite(u[i]) && x[i] > u[i]+primalTol){ x[i]=u[i]; state[i]=1; changed=true; }
+    }
+    if(changed) continue;
+    const qx=triMatVecArrays(T.lower,T.diag,T.upper,x), grad=qx.map((v,i)=>v+q[i]);
+    let kktScale=1;
+    for(let i=0;i<n;i++) kktScale=Math.max(kktScale,Math.abs(qx[i]),Math.abs(q[i]));
+    const effectiveKktTol=kktTol*kktScale;
+    let maxKkt=0, released=false;
+    for(let i=0;i<n;i++){
+      if(state[i]===-1){ const viol=Math.max(0,-grad[i]); if(viol>effectiveKktTol){ state[i]=0; released=true; } maxKkt=Math.max(maxKkt,viol); }
+      else if(state[i]===1){ const viol=Math.max(0,grad[i]); if(viol>effectiveKktTol){ state[i]=0; released=true; } maxKkt=Math.max(maxKkt,viol); }
+      else if(state[i]===2){ maxKkt=Math.max(maxKkt,0); }
+      else { maxKkt=Math.max(maxKkt,Math.abs(grad[i])); }
+    }
+    if(!released){
+      let active=0;
+      for(const s of state) if(s!==0) active++;
+      const residuals=boxQpResiduals(T,q,l,u,x,opts);
+      return {theta:x, objective:triObjectiveArrays(T.lower,T.diag,T.upper,q,x), iterations:outer+1, activeBounds:active,
+        maxKktViolation:residuals.maxKktViolation,maxRawKktViolation:Math.max(maxKkt,residuals.maxRawKktViolation),
+        maxPrimalViolation:residuals.maxPrimalViolation,maxRawPrimalViolation:residuals.maxRawPrimalViolation,repairedBounds:0,converged:true};
+    }
+  }
+  const residuals=boxQpResiduals(T,q,l,u,x,opts);
+  return {theta:x,objective:triObjectiveArrays(T.lower,T.diag,T.upper,q,x),iterations:maxOuter,activeBounds:residuals.activeBounds,
+    maxKktViolation:residuals.maxKktViolation,maxRawKktViolation:residuals.maxRawKktViolation,
+    maxPrimalViolation:residuals.maxPrimalViolation,maxRawPrimalViolation:residuals.maxRawPrimalViolation,repairedBounds:0,converged:false};
+}
+function pangHanSolvePrincipal(T,rhs,alpha){
+  const n=rhs.length, out=Array(n).fill(0);
+  for(let s=0;s<n;){
+    while(s<n && !alpha[s]) s++;
+    if(s>=n) break;
+    let e=s;
+    while(e+1<n && alpha[e+1]) e++;
+    const m=e-s+1;
+    const lo=Array(Math.max(0,m-1)), di=Array(m), up=Array(Math.max(0,m-1)), b=Array(m);
+    for(let k=0;k<m;k++){
+      const i=s+k;
+      di[k]=T.diag[i]; b[k]=rhs[i];
+      if(k>0) lo[k-1]=T.lower[i-1];
+      if(k<m-1) up[k]=T.upper[i];
+    }
+    solveTridiagonalInPlace(lo,di,up,b);
+    for(let k=0;k<m;k++) out[s+k]=b[k];
+    s=e+1;
+  }
+  return out;
+}
+function pangHanNstepVector(T){
+  const n=T.diag.length, comparisonOff=T.upper.map(v=>-Math.abs(v));
+  const d=solveTridiagonalArrays(comparisonOff,T.diag,comparisonOff,Array(n).fill(1));
+  const p=Array(n).fill(0);
+  for(let i=0;i<n;i++){
+    if(!(d[i]>0) || !Number.isFinite(d[i])) throw new Error('Pang--Han comparison solve did not produce a positive scaling vector');
+    p[i]=T.diag[i]*d[i];
+    if(i>0 && T.lower[i-1]<0) p[i]+=T.lower[i-1]*d[i-1];
+    if(i<n-1 && T.upper[i]<0) p[i]+=T.upper[i]*d[i+1];
+    if(!(p[i]>0) || !Number.isFinite(p[i])) throw new Error('Pang--Han n-step vector is not strictly positive');
+  }
+  return p;
+}
+function solvePangHanStandardBoxQP(T,q,upper,opts={}){
+  const n=q.length;
+  if(!n) return {x:[],pivots:0};
+  const p=pangHanNstepVector(T);
+  const state=Array(n).fill(0); // 0: lower, 1: between bounds, 2: upper
+  const maxPivots=opts.maxPangHanPivots ?? 2*n;
+  const ratioTol=opts.pangHanRatioTol ?? 64*Number.EPSILON;
+  let qbar=Array(n).fill(0), pbar=Array(n).fill(0), pivots=0;
+  for(;;){
+    const alpha=state.map(v=>v===1), upperPoint=state.map((v,i)=>v===2?upper[i]:0);
+    const baseQ=triMatVecArrays(T.lower,T.diag,T.upper,upperPoint).map((v,i)=>v+q[i]);
+    const qa=pangHanSolvePrincipal(T,baseQ,alpha), pa=pangHanSolvePrincipal(T,p,alpha);
+    const Mqa=triMatVecArrays(T.lower,T.diag,T.upper,qa), Mpa=triMatVecArrays(T.lower,T.diag,T.upper,pa);
+    for(let i=0;i<n;i++){
+      qbar[i]=alpha[i]?qa[i]:baseQ[i]-Mqa[i];
+      pbar[i]=alpha[i]?pa[i]:p[i]-Mpa[i];
+    }
+    let nextStep=0, pivotIndex=-1;
+    for(let i=0;i<n;i++){
+      const pScale=Math.max(1,Math.abs(p[i]));
+      if(pbar[i]<=ratioTol*pScale) continue;
+      let candidate=-Infinity;
+      if(state[i]===0) candidate=-qbar[i]/pbar[i];
+      else if(state[i]===1 && Number.isFinite(upper[i])) candidate=-(upper[i]+qbar[i])/pbar[i];
+      const tieTol=ratioTol*Math.max(1,Math.abs(nextStep),Math.abs(candidate));
+      if(candidate>nextStep+tieTol || (candidate>0 && Math.abs(candidate-nextStep)<=tieTol && (pivotIndex<0 || i<pivotIndex))){
+        nextStep=candidate; pivotIndex=i;
+      }
+    }
+    if(pivotIndex<0){
+      const x=Array(n).fill(0);
+      for(let i=0;i<n;i++){
+        if(state[i]===2) x[i]=upper[i];
+        else if(state[i]===1) x[i]=clampToBoundsValue(-qbar[i],0,upper[i]);
+      }
+      return {x,pivots};
+    }
+    if(pivots>=maxPivots) throw new Error(`Pang--Han PPPA exceeded its ${maxPivots}-pivot bound`);
+    if(state[pivotIndex]===0) state[pivotIndex]=1;
+    else if(state[pivotIndex]===1) state[pivotIndex]=2;
+    else throw new Error('Pang--Han PPPA selected an invalid pivot state');
+    pivots++;
+  }
+}
+function solveBoxQPPangHan(T,q,lower,upper,opts={}){
+  const n=q.length, l=lower.slice(), u=upper.slice();
+  const boundFeasTol=opts.boundFeasTol ?? 1e-12;
+  for(let i=0;i<n;i++) if(l[i]>u[i]+boundFeasTol) throw new Error(`infeasible box at slope ${i}: ${l[i]} > ${u[i]}`);
+
+  const diag=T.diag.slice(), lin=q.slice(), edge=T.upper.slice();
+  const previous=Array(n), next=Array(n), removed=Array(n).fill(false), theta=Array(n).fill(NaN);
+  for(let i=0;i<n;i++){ previous[i]=i-1; next[i]=i+1<n?i+1:-1; }
+  function unlinkPathNode(i,fill){
+    const a=previous[i], b=next[i];
+    if(a>=0){ next[a]=b; edge[a]=fill; }
+    if(b>=0) previous[b]=a;
+    removed[i]=true;
+  }
+  for(let i=0;i<n;i++){
+    if(!Number.isFinite(l[i]) || !Number.isFinite(u[i]) || Math.abs(u[i]-l[i])>boundFeasTol) continue;
+    const value=0.5*(l[i]+u[i]), a=previous[i], b=next[i];
+    const leftEdge=a>=0?edge[a]:0, rightEdge=b>=0?edge[i]:0;
+    if(a>=0) lin[a]+=leftEdge*value;
+    if(b>=0) lin[b]+=rightEdge*value;
+    theta[i]=value;
+    unlinkPathNode(i,0);
+  }
+
+  const elimination=[];
+  for(let i=0;i<n;i++){
+    if(removed[i] || Number.isFinite(l[i]) || Number.isFinite(u[i])) continue;
+    const pivot=diag[i], a=previous[i], b=next[i];
+    if(!(pivot>0) || !Number.isFinite(pivot)) throw new Error('nonpositive pivot during Pang--Han free-variable elimination');
+    const leftEdge=a>=0?edge[a]:0, rightEdge=b>=0?edge[i]:0;
+    elimination.push({i,a,b,pivot,linear:lin[i],leftEdge,rightEdge});
+    if(a>=0){ diag[a]-=leftEdge*leftEdge/pivot; lin[a]-=leftEdge*lin[i]/pivot; }
+    if(b>=0){ diag[b]-=rightEdge*rightEdge/pivot; lin[b]-=rightEdge*lin[i]/pivot; }
+    unlinkPathNode(i,(a>=0&&b>=0)?-leftEdge*rightEdge/pivot:0);
+  }
+
+  const kept=[];
+  for(let i=0;i<n;i++) if(!removed[i]) kept.push(i);
+  let pp={x:[],pivots:0};
+  if(kept.length){
+    const m=kept.length, reduced=triZeros(m), reducedQ=Array(m), shifts=Array(m), signs=Array(m), caps=Array(m);
+    for(let j=0;j<m;j++){
+      const i=kept[j];
+      reduced.diag[j]=diag[i]; reducedQ[j]=lin[i];
+      if(j<m-1){
+        if(next[i]!==kept[j+1]) throw new Error('invalid path after Pang--Han Schur elimination');
+        reduced.upper[j]=edge[i]; reduced.lower[j]=edge[i];
+      }
+      if(Number.isFinite(l[i])){
+        shifts[j]=l[i]; signs[j]=1; caps[j]=Number.isFinite(u[i])?u[i]-l[i]:Infinity;
+      }else{
+        shifts[j]=u[i]; signs[j]=-1; caps[j]=Infinity;
+      }
+      if(!(caps[j]>0)) throw new Error('nonpositive transformed box width in Pang--Han preprocessing');
+    }
+    const shiftedLinear=triMatVecArrays(reduced.lower,reduced.diag,reduced.upper,shifts).map((v,j)=>v+reducedQ[j]);
+    const standard=triZeros(m), standardQ=Array(m);
+    for(let j=0;j<m;j++){
+      standard.diag[j]=reduced.diag[j]; standardQ[j]=signs[j]*shiftedLinear[j];
+      if(j<m-1){ standard.upper[j]=signs[j]*reduced.upper[j]*signs[j+1]; standard.lower[j]=standard.upper[j]; }
+    }
+    pp=solvePangHanStandardBoxQP(standard,standardQ,caps,opts);
+    for(let j=0;j<m;j++) theta[kept[j]]=shifts[j]+signs[j]*pp.x[j];
+  }
+  for(let k=elimination.length-1;k>=0;k--){
+    const r=elimination[k];
+    let numerator=r.linear;
+    if(r.a>=0 && r.leftEdge!==0) numerator+=r.leftEdge*theta[r.a];
+    if(r.b>=0 && r.rightEdge!==0) numerator+=r.rightEdge*theta[r.b];
+    theta[r.i]=-numerator/r.pivot;
+  }
+  if(theta.some(v=>!Number.isFinite(v))) throw new Error('Pang--Han reconstruction produced a nonfinite slope');
+  const residuals=boxQpResiduals(T,q,l,u,theta,opts);
+  return {theta,objective:triObjectiveArrays(T.lower,T.diag,T.upper,q,theta),iterations:pp.pivots,activeBounds:residuals.activeBounds,
+    maxKktViolation:residuals.maxKktViolation,maxRawKktViolation:residuals.maxRawKktViolation,
+    maxPrimalViolation:residuals.maxPrimalViolation,maxRawPrimalViolation:residuals.maxRawPrimalViolation,repairedBounds:0,
+    converged:true,pangHanPivots:pp.pivots,reducedVariables:kept.length};
+}
+function solveBoxQPHybrid(T,q,lower,upper,startTheta=null,opts={}){
+  const primalTol=opts.primalTol ?? 1e-11, kktTol=opts.kktTol ?? 1e-9;
+  const fast=solveBoxQPBlockActiveSet(T,q,lower,upper,startTheta,opts);
+  if(fast.converged && fast.maxPrimalViolation<=primalTol && fast.maxKktViolation<=kktTol){
+    return {...fast,fallbackUsed:false,fastSweeps:fast.iterations,pangHanPivots:0,reducedVariables:0,
+      solverPath:'block',diagonalEquilibration:false};
+  }
+  const n=T.diag.length, diagonalScale=Array(n);
+  for(let i=0;i<n;i++){
+    if(!Number.isFinite(T.diag[i])||!(T.diag[i]>0)) throw new Error(`nonpositive QP diagonal at ${i}`);
+    diagonalScale[i]=Math.sqrt(T.diag[i]);
+  }
+  const scaled=triZeros(n), scaledQ=Array(n), scaledLower=Array(n), scaledUpper=Array(n), scaledStart=startTheta?Array(n):null;
+  for(let i=0;i<n;i++){
+    scaled.diag[i]=1;
+    scaledQ[i]=q[i]/diagonalScale[i];
+    scaledLower[i]=sc2ScaleFinite(lower[i],diagonalScale[i]);
+    scaledUpper[i]=sc2ScaleFinite(upper[i],diagonalScale[i]);
+    if(scaledStart)scaledStart[i]=startTheta[i]*diagonalScale[i];
+  }
+  for(let i=0;i<n-1;i++){
+    const denominator=diagonalScale[i]*diagonalScale[i+1];
+    scaled.lower[i]=T.lower[i]/denominator;
+    scaled.upper[i]=T.upper[i]/denominator;
+  }
+  const scaledFast=solveBoxQPBlockActiveSet(scaled,scaledQ,scaledLower,scaledUpper,scaledStart,opts);
+  if(scaledFast.converged && scaledFast.maxPrimalViolation<=primalTol && scaledFast.maxKktViolation<=kktTol){
+    const theta=scaledFast.theta.map((value,index)=>value/diagonalScale[index]);
+    const originalResiduals=boxQpResiduals(T,q,lower,upper,theta,opts);
+    if(originalResiduals.maxPrimalViolation>primalTol){
+      throw new Error(`Restored equilibrated block solution violates the original box: primal=${originalResiduals.maxPrimalViolation}`);
+    }
+    return {...scaledFast,theta,objective:triObjectiveArrays(T.lower,T.diag,T.upper,q,theta),
+      iterations:fast.iterations+scaledFast.iterations,fallbackUsed:false,
+      fastSweeps:fast.iterations+scaledFast.iterations,pangHanPivots:0,reducedVariables:0,
+      solverPath:'block; diagonally equilibrated block retry',
+      maxRawKktViolation:Math.max(scaledFast.maxRawKktViolation,originalResiduals.maxRawKktViolation),
+      maxPrimalViolation:Math.max(scaledFast.maxPrimalViolation,originalResiduals.maxPrimalViolation),
+      maxRawPrimalViolation:Math.max(scaledFast.maxRawPrimalViolation,originalResiduals.maxRawPrimalViolation),
+      unscaledNormalizedKkt:originalResiduals.maxKktViolation,
+      diagonalEquilibration:true,equilibrationRetry:true};
+  }
+  const fallback=solveBoxQPPangHan(scaled,scaledQ,scaledLower,scaledUpper,opts);
+  if(fallback.maxPrimalViolation>primalTol || fallback.maxKktViolation>kktTol){
+    throw new Error(`Equilibrated Pang--Han fallback residual check failed: primal=${fallback.maxPrimalViolation}, KKT=${fallback.maxKktViolation}`);
+  }
+  const theta=fallback.theta.map((value,index)=>value/diagonalScale[index]);
+  const originalResiduals=boxQpResiduals(T,q,lower,upper,theta,opts);
+  if(originalResiduals.maxPrimalViolation>primalTol){
+    throw new Error(`Restored Pang--Han fallback violates the original box: primal=${originalResiduals.maxPrimalViolation}`);
+  }
+  return {...fallback,theta,objective:triObjectiveArrays(T.lower,T.diag,T.upper,q,theta),
+    iterations:fast.iterations+scaledFast.iterations+fallback.pangHanPivots,fallbackUsed:true,
+    fastSweeps:fast.iterations+scaledFast.iterations,
+    solverPath:'block; diagonally equilibrated Pang--Han',
+    maxRawKktViolation:Math.max(fallback.maxRawKktViolation,originalResiduals.maxRawKktViolation),
+    maxPrimalViolation:Math.max(fallback.maxPrimalViolation,originalResiduals.maxPrimalViolation),
+    maxRawPrimalViolation:Math.max(fallback.maxRawPrimalViolation,originalResiduals.maxRawPrimalViolation),
+    unscaledNormalizedKkt:originalResiduals.maxKktViolation,
+    diagonalEquilibration:true,equilibrationRetry:true};
+}
+function energyValueTri(T,g,theta){ return triObjectiveArrays(T.lower,T.diag,T.upper,g,theta); }
+function sc2AffineNormalizeInput(points){
+  if(!Array.isArray(points)||points.length<2) throw new Error('CD-HBEP requires at least two data points');
+  const n=points.length, xOrigin=points[0].x, yOrigin=points[0].y;
+  const xScale=points[n-1].x-xOrigin;
+  if(!Number.isFinite(xScale)||!(xScale>0)) throw new Error('CD-HBEP requires finite, strictly increasing abscissae');
+  let ymin=Infinity,ymax=-Infinity;
+  for(let i=0;i<n;i++){
+    const point=points[i];
+    if(!Number.isFinite(point.x)||!Number.isFinite(point.y)) throw new Error('CD-HBEP requires finite data');
+    if(i>0&&!(point.x>points[i-1].x)) throw new Error('CD-HBEP requires strictly increasing abscissae');
+    if(point.y<ymin)ymin=point.y;
+    if(point.y>ymax)ymax=point.y;
+  }
+  const observedYRange=ymax-ymin;
+  if(!Number.isFinite(observedYRange)||observedYRange<0) throw new Error('CD-HBEP could not determine a finite ordinate range');
+  const constantY=observedYRange===0;
+  const yScale=constantY?1:observedYRange;
+  const normalized=points.map((point,index)=>({
+    x:index===0?0:(index===n-1?1:(point.x-xOrigin)/xScale),
+    y:(point.y-yOrigin)/yScale
+  }));
+  for(let i=1;i<n;i++) if(!(normalized[i].x>normalized[i-1].x)){
+    throw new Error('Adjacent abscissae are indistinguishable after affine normalization');
+  }
+  return {points:normalized,xOrigin,yOrigin,xScale,yScale,observedYRange,constantY,
+    slopeScale:yScale/xScale,energyScale:(yScale*yScale)/(xScale*xScale*xScale)};
+}
+function sc2PublicNormalization(affine){
+  return {xOrigin:affine.xOrigin,yOrigin:affine.yOrigin,xScale:affine.xScale,
+    yScale:affine.yScale,observedYRange:affine.observedYRange,constantY:affine.constantY};
+}
+function sc2ScaleFinite(value,scale){ return Number.isFinite(value)?value*scale:value; }
+function sc2RestoreBounds(bounds,slopeScale,valueScale){
+  if(!bounds)return bounds;
+  const items=(bounds.items||[]).map(item=>({...item,lo:sc2ScaleFinite(item.lo,slopeScale),hi:sc2ScaleFinite(item.hi,slopeScale)}));
+  const sideSlack=(bounds.sideSlack||[]).map(item=>({...item,nominal:item.nominal*valueScale,effective:item.effective*valueScale}));
+  return {...bounds,lower:bounds.lower.map(value=>sc2ScaleFinite(value,slopeScale)),
+    upper:bounds.upper.map(value=>sc2ScaleFinite(value,slopeScale)),items,sideSlack};
+}
+function sc2RestoreCurve(points,normalized,affine,runtimeOptions={}){
+  const slopeScale=affine.slopeScale,valueScale=affine.yScale,energyScale=affine.energyScale;
+  const scaleSlopes=values=>values?Array.from(values,value=>value*slopeScale):values;
+  const slopes=scaleSlopes(normalized.slopes);
+  const sourceInfo=normalized.info||{};
+  const restoredBounds=sc2RestoreBounds(sourceInfo.bounds,slopeScale,valueScale);
+  const normalizedEpsRange=sourceInfo.epsRange?{...sourceInfo.epsRange,values:Array.from(sourceInfo.epsRange.values||[])}:null;
+  const epsRange=normalizedEpsRange?{min:normalizedEpsRange.min*valueScale,max:normalizedEpsRange.max*valueScale,
+    values:normalizedEpsRange.values.map(value=>value*valueScale)}:normalizedEpsRange;
+  const violations=(sourceInfo.violations||[]).map(item=>({...item,
+    amount:Number.isFinite(item.amount)?item.amount*valueScale:item.amount,
+    threshold:Number.isFinite(item.threshold)?item.threshold*valueScale:item.threshold}));
+  const info={...sourceInfo,
+    theta:scaleSlopes(sourceInfo.theta),thetaBeam:scaleSlopes(sourceInfo.thetaBeam),
+    thetaPchip:scaleSlopes(sourceInfo.thetaPchip),
+    thetaDelta:scaleSlopes(sourceInfo.thetaDelta),
+    bounds:restoredBounds,constraints:restoredBounds?restoredBounds.items:sourceInfo.constraints,
+    chordSideSlack:restoredBounds?restoredBounds.sideSlack:[],violations,epsRange,
+    normalizedEpsRange,normalization:sc2PublicNormalization(affine),
+    objective:Number.isFinite(sourceInfo.objective)?sourceInfo.objective*energyScale:sourceInfo.objective,
+    beamEnergy:Number.isFinite(sourceInfo.beamEnergy)?sourceInfo.beamEnergy*energyScale:sourceInfo.beamEnergy,
+    unconstrainedBeamEnergy:Number.isFinite(sourceInfo.unconstrainedBeamEnergy)?sourceInfo.unconstrainedBeamEnergy*energyScale:sourceInfo.unconstrainedBeamEnergy};
+  if(sourceInfo.stats) info.stats={...sourceInfo.stats,maxViolation:sourceInfo.stats.maxViolation*slopeScale};
+  return {eval:makeHermiteEvaluator(points,slopes),slopes,info};
+}
+function computeBeamOnlySPNormalized(points,runtimeOptions={}){
+  const opts=spOptions(points);
+  const dataCache=sc2PrepareData(points,true);
+  Object.defineProperty(opts,'_sc2Cache',{value:dataCache,enumerable:false});
+  Object.defineProperty(opts,'_compact',{value:!!runtimeOptions.compact,enumerable:false});
+  const beam=assembleBeamSlopeTri(points);
+  let thetaBeam;
+  try { thetaBeam=solveTridiagonalArrays(beam.T.lower,beam.T.diag,beam.T.upper,beam.g.map(v=>-v)); }
+  catch(e){ thetaBeam=pchipSlopes(points); }
+  const Q=triClone(beam.T), q=beam.g.slice();
+  const activeEnv=new Set(), activeMono=new Set(), activeSide=new Set();
+  const solverTrace=[];
+  const solverOptions={kktTol:opts.kktTol,boundFeasTol:opts.boundFeasTol};
+  function solveCurrentBox(currentBounds,start){
+    const solved=solveBoxQPHybrid(Q,q,currentBounds.lower,currentBounds.upper,start,solverOptions);
+    solverTrace.push(solved);
+    return solved;
+  }
+  let bounds=sc2BuildActiveBounds(points,opts,activeEnv,activeMono,activeSide);
+  let result=solveCurrentBox(bounds,thetaBeam);
+  let theta=result.theta, activationLog=[], roundsUsed=0;
+  for(let r=0;r<opts.maxActiveRounds;r++){
+    const det=sc2DetectActivations(points,theta,opts,activeEnv,activeMono,activeSide);
+    if(!det.addEnv.length && !det.addMono.length && !det.addSide.length){ activationLog=det.report; break; }
+    roundsUsed=r+1;
+    det.addEnv.forEach(e=>activeEnv.add(e));
+    det.addMono.forEach(e=>activeMono.add(e));
+    det.addSide.forEach(e=>activeSide.add(e));
+    activationLog=activationLog.concat(det.report);
+    bounds=sc2BuildActiveBounds(points,opts,activeEnv,activeMono,activeSide);
+    result=solveCurrentBox(bounds,theta);
+    theta=result.theta;
+  }
+  const solverSummary={
+    qpSolves:solverTrace.length,
+    fastSweeps:solverTrace.reduce((sum,item)=>sum+item.fastSweeps,0),
+    maxFastSweeps:solverTrace.reduce((maximum,item)=>Math.max(maximum,item.fastSweeps),0),
+    fallbackCount:solverTrace.filter(item=>item.fallbackUsed).length,
+    equilibrationRetries:solverTrace.filter(item=>item.equilibrationRetry).length,
+    pangHanPivots:solverTrace.reduce((sum,item)=>sum+item.pangHanPivots,0),
+    maxKkt:solverTrace.reduce((maximum,item)=>Math.max(maximum,item.maxKktViolation),0),
+    maxRawKkt:solverTrace.reduce((maximum,item)=>Math.max(maximum,item.maxRawKktViolation),0),
+    maxPrimal:solverTrace.reduce((maximum,item)=>Math.max(maximum,item.maxPrimalViolation),0),
+    maxRawPrimal:solverTrace.reduce((maximum,item)=>Math.max(maximum,item.maxRawPrimalViolation||0),0),
+    fastSweepCounts:solverTrace.map(item=>item.fastSweeps),
+    fallbackFlags:solverTrace.map(item=>item.fallbackUsed),
+    pangHanPivotCounts:solverTrace.map(item=>item.pangHanPivots)
+  };
+  if(runtimeOptions.compact){
+    return {slopes:theta,info:{roundsUsed,solverIterations:solverSummary.fastSweeps,solverKkt:solverSummary.maxKkt,
+      solverQpSolves:solverSummary.qpSolves,solverMaxFastSweeps:solverSummary.maxFastSweeps,solverFallbackCount:solverSummary.fallbackCount,
+      solverPangHanPivots:solverSummary.pangHanPivots,solverRawKkt:solverSummary.maxRawKkt,solverMaxPrimal:solverSummary.maxPrimal,
+      solverRawPrimal:solverSummary.maxRawPrimal,
+      solverEquilibrationRetryCount:solverSummary.equilibrationRetries,
+      solverFastSweepCounts:solverSummary.fastSweepCounts,solverFallbackFlags:solverSummary.fallbackFlags,
+      solverPangHanPivotCounts:solverSummary.pangHanPivotCounts,
+      activeEnvelopeCount:activeEnv.size,activeSlopeBoxCount:activeMono.size,activeChordSideCount:activeSide.size}};
+  }
+  const stats=boxStats(theta,bounds), pchip=pchipSlopes(points);
+  const evaluator=makeHermiteEvaluator(points, theta);
+  const info={theta, thetaBeam, thetaPchip:pchip, thetaDelta:theta.map((v,i)=>Math.abs(v-thetaBeam[i])),
+    constraints:bounds.items, bounds, stats, opts, roundsUsed,
+    solverName:'hybrid block active-set with Pang--Han fallback', solverIterations:solverSummary.fastSweeps, solverKkt:solverSummary.maxKkt,
+    solverQpSolves:solverSummary.qpSolves,solverMaxFastSweeps:solverSummary.maxFastSweeps,solverFallbackCount:solverSummary.fallbackCount,
+    solverPangHanPivots:solverSummary.pangHanPivots,solverRawKkt:solverSummary.maxRawKkt,solverMaxPrimal:solverSummary.maxPrimal,
+    solverRawPrimal:solverSummary.maxRawPrimal,
+    solverEquilibrationRetryCount:solverSummary.equilibrationRetries,
+    solverFastSweepCounts:solverSummary.fastSweepCounts,solverFallbackFlags:solverSummary.fallbackFlags,
+    solverPangHanPivotCounts:solverSummary.pangHanPivotCounts,repairedBounds:result.repairedBounds,
+    extraConstraints:activeEnv.size+activeMono.size+activeSide.size, activeEnvelope:Array.from(activeEnv), activeSlopeBox:Array.from(activeMono), activeChordSide:Array.from(activeSide),
+    chordSideSlack:bounds.sideSlack || [],
+    objective:triObjectiveArrays(Q.lower,Q.diag,Q.upper,q,theta),
+    beamEnergy:energyValueTri(beam.T,beam.g,theta), unconstrainedBeamEnergy:energyValueTri(beam.T,beam.g,thetaBeam), violations:activationLog, epsRange:spToleranceRange(points,opts)};
+  return {eval:evaluator, slopes:theta, info};
+}
+function computeBeamOnlySP(points,runtimeOptions={}){
+  const affine=sc2AffineNormalizeInput(points);
+  const normalized=computeBeamOnlySPNormalized(affine.points,runtimeOptions);
+  return sc2RestoreCurve(points,normalized,affine,runtimeOptions);
+}
+// The deterministic artifact exporter calls sc2CertificationAudit and
+// sc2ClosestActivationMargin for the manuscript stability experiment.
+function sc2CertificationAudit(points,curve){
+  const affine=sc2AffineNormalizeInput(points), normalizedPoints=affine.points;
+  const theta=curve.slopes.map(value=>value/affine.slopeScale);
+  const opts=spOptions(normalizedPoints);
+  Object.defineProperty(opts,'_sc2Cache',{value:sc2PrepareData(normalizedPoints,true),enumerable:false});
+  Object.defineProperty(opts,'_compact',{value:true,enumerable:false});
+  const activeEnv=new Set(curve.info.activeEnvelope||[]), activeMono=new Set(curve.info.activeSlopeBox||[]),
+    activeSide=new Set(curve.info.activeChordSide||[]);
+  const residual=sc2DetectActivations(normalizedPoints,theta,opts,activeEnv,activeMono,activeSide);
+  const bounds=sc2BuildActiveBounds(normalizedPoints,opts,activeEnv,activeMono,activeSide);
+  let maxGuaranteeViolation=0;
+  for(const e of activeEnv){
+    const env=sc2EnvelopeViolation(normalizedPoints,theta,e,opts);
+    maxGuaranteeViolation=Math.max(maxGuaranteeViolation,env.amount,env.handleAmount||0);
+  }
+  for(const e of activeMono){
+    maxGuaranteeViolation=Math.max(maxGuaranteeViolation,sc2ReverseMotion(normalizedPoints,theta,e,opts).amount);
+  }
+  const effectiveByInterval=new Map(bounds.sideSlack.map(item=>[item.e,item.effective]));
+  for(const e of activeSide){
+    const side=sc2ChordSideDeviation(normalizedPoints,theta,e,opts);
+    const effective=effectiveByInterval.get(e);
+    if(Number.isFinite(effective)) maxGuaranteeViolation=Math.max(maxGuaranteeViolation,Math.max(0,side.amount-effective));
+  }
+  return {residualActivations:residual.addEnv.length+residual.addMono.length+residual.addSide.length,
+    maxGuaranteeViolation};
+}
+function sc2ClosestActivationMargin(points,physicalTheta){
+  const affine=sc2AffineNormalizeInput(points), normalizedPoints=affine.points;
+  const theta=physicalTheta.map(value=>value/affine.slopeScale);
+  const opts=spOptions(normalizedPoints);
+  Object.defineProperty(opts,'_sc2Cache',{value:sc2PrepareData(normalizedPoints,true),enumerable:false});
+  let closest=null;
+  const consider=(type,e,amount,threshold)=>{
+    if(!Number.isFinite(amount)||!Number.isFinite(threshold))return;
+    const relativeGap=(amount-threshold)/Math.max(threshold,1e-12);
+    const candidate={type,e,amount,threshold,relativeGap,absoluteRelativeGap:Math.abs(relativeGap)};
+    if(!closest||candidate.absoluteRelativeGap<closest.absoluteRelativeGap)closest=candidate;
+  };
+  for(let e=0;e<normalizedPoints.length-1;e++){
+    if(opts.over){
+      const env=sc2EnvelopeViolation(normalizedPoints,theta,e,opts);
+      const threshold=sc2ActivationThreshold(normalizedPoints,e,opts,'envelope');
+      consider('envelope',e,env.amount,threshold);
+      consider('Bezier handle',e,env.handleAmount||0,Math.max((opts.handleBandMultiplier??1.5)*sc2IntervalTol(normalizedPoints,e,opts),threshold));
+    }
+    if(opts.reverseGuard) consider('reverse motion',e,sc2ReverseMotion(normalizedPoints,theta,e,opts).amount,
+      sc2ActivationThreshold(normalizedPoints,e,opts,'reverse'));
+    if(opts.chordSide){
+      const side=sc2ChordSideDeviation(normalizedPoints,theta,e,opts);
+      if(side.sign)consider('chord side',e,side.amount,side.threshold);
+    }
+  }
+  return closest;
+}
+
+
+function setTooltip(id, en, ja){
+  const el=$(id); if(!el) return;
+  el.title = tr(en, ja || en);
+}
+function applyTooltips(){
+  setTooltip('exampleSmoothBtn','Surge case: classical Akima data with a late steep rise.');
+  setTooltip('exampleMonoBtn','Peak case: titanium equation-of-state data.');
+  setTooltip('exampleOscBtn','Hump case: Manni 2001 numerical example.');
+  setTooltip('exampleTurnBtn','Arc case: Kvasov 2014 semicircle data uniform in arc length.');
+  setTooltip('exampleWiggleBtn','Synthetic oscillatory test case with alternating signs.');
+  setTooltip('examplePlateauBtn','Synthetic sharp-turn case with a short interval and rebound.');
+  setTooltip('exampleAkimaDataBtn','Synthetic wiggle-prone data used to inspect reverse motion.');
+  setTooltip('exampleDoughertyBtn','Synthetic plateau-rebound data used to inspect overshoot near nearly flat intervals.');
+  setTooltip('thesisSummary','Historical rod FEM interpolation based on the thesis displacement-reconstruction model.');
+  setTooltip('spSummary','Certification-Driven Hermite Beam-Energy Projection with a finite active constraint set.');
+  setTooltip('benchExamplesBtn','Show the manuscript-style metrics table for all eight test cases.');
+  setTooltip('benchAblationBtn','Compare the beam-only reference with successive active-constraint stages of CD-HBEP.');
+  setTooltip('benchRandomBtn','Run a seeded random benchmark in the browser.');
+  setTooltip('benchTimingBtn','Run the manuscript timing protocol in this browser.');
+}
+
+document.addEventListener('DOMContentLoaded', initUI);
+</script>
+</body>
+</html>

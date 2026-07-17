@@ -1,0 +1,31 @@
+# Generated numerical output
+build/
+dist/
+results/
+
+# Language and editor artifacts
+**/__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Local research and journal-submission workspace (not part of the public app repository)
+AGENTS.md
+docs/
+manuscript/
+references/
+source_archives/
+supplement/
+tmp/
+
+# Manuscript-only rendering and packaging utilities
+scripts/package_submission.ps1
+scripts/package_supplement.ps1
+scripts/regenerate_all.ps1
+scripts/render_artifacts.py
+scripts/render_pdf_contact_sheets.py
+scripts/requirements.txt
+scripts/verify_artifacts.cjs
+scripts/verify_pdf_style.py

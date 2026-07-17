@@ -1,0 +1,20 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite the archived release and the accompanying article."
+title: "Certification-Driven Hermite Beam-Energy Projection"
+type: software
+authors:
+  - family-names: Nishidate
+    given-names: Yohei
+    affiliation: The University of Aizu
+    email: nisidate@u-aizu.ac.jp
+repository-code: "https://github.com/nsdt/CD-HBEP"
+url: "https://nsdt.github.io/CD-HBEP/"
+version: 0.1.0
+date-released: 2026-07-17
+license: MIT
+keywords:
+  - cubic Hermite interpolation
+  - shape-controlled interpolation
+  - beam energy
+  - quadratic programming
+  - numerical algorithms
