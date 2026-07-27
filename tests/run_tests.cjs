@@ -188,13 +188,48 @@ for (const [name, data] of Object.entries(runtime.examples)) {
   }
 }
 
+// The reverse-motion amount is half of the total variation beyond the endpoint
+// change. It therefore retains the previous opposite-motion interpretation on
+// nonflat intervals and detects nonconstant motion on exact-flat intervals.
+{
+  const flatPoints = [{ x: 0, y: 0 }, { x: 1, y: 0 }];
+  const flatOpts = c.spOptions(flatPoints);
+  Object.defineProperty(flatOpts, '_sc2Cache', {
+    value: c.sc2PrepareData(flatPoints, true), enumerable: false,
+  });
+  const flatReverse = c.sc2ReverseMotion(flatPoints, [1, -1], 0, flatOpts);
+  near(flatReverse.totalVariation, 0.5, 1e-12, 'flat total variation');
+  near(flatReverse.endpointVariation, 0, 1e-12, 'flat endpoint variation');
+  near(flatReverse.amount, 0.25, 1e-12, 'flat excess-total-variation amount');
+
+  const risingPoints = [{ x: 0, y: 0 }, { x: 1, y: 1 }];
+  const risingOpts = c.spOptions(risingPoints);
+  Object.defineProperty(risingOpts, '_sc2Cache', {
+    value: c.sc2PrepareData(risingPoints, true), enumerable: false,
+  });
+  const risingReverse = c.sc2ReverseMotion(risingPoints, [-1, 3], 0, risingOpts);
+  near(risingReverse.totalVariation, 1.25, 1e-12, 'nonflat total variation');
+  near(risingReverse.endpointVariation, 1, 1e-12, 'nonflat endpoint variation');
+  near(risingReverse.amount, 0.125, 1e-12, 'nonflat reverse-motion amount');
+
+  const plateauPoints = [0, 1, 1, 0].map((y, x) => ({ x, y }));
+  runtime.setPoints(plateauPoints);
+  const plateauCurve = c.computeBeamOnlySP(plateauPoints);
+  assert.ok(plateauCurve.info.activeSlopeBox.includes(1), 'exact-flat interval activates the reverse guard');
+  near(plateauCurve.slopes[1], 0, 1e-12, 'exact-flat left slope after activation');
+  near(plateauCurve.slopes[2], 0, 1e-12, 'exact-flat right slope after activation');
+  verifySc(plateauPoints, plateauCurve, 'exact-flat plateau');
+}
+
 // A constant data set has zero vertical range in both the manuscript
-// definition and the executable tolerance model.
+// definition and the executable tolerance model. Its exact-flat intervals do
+// not activate because their total variation is also zero.
 {
   const points = [{ x: 0, y: 2 }, { x: 0.2, y: 2 }, { x: 1.5, y: 2 }, { x: 3, y: 2 }];
   runtime.setPoints(points);
   assert.strictEqual(c.sc2PrepareData(points, true).yr, 0);
   const curve = c.computeBeamOnlySP(points);
+  assert.strictEqual(curve.info.activeSlopeBox.length, 0);
   for (let i = 0; i < curve.slopes.length; i++) near(curve.slopes[i], 0, 1e-12, `constant slope ${i}`);
   verifySc(points, curve, 'constant data');
 }
@@ -591,6 +626,7 @@ for (const [name, data] of Object.entries(runtime.examples)) {
   ]);
   const activeKey = { envelope: 'activeEnvelope', reverse: 'activeSlopeBox', side: 'activeChordSide' };
   const toggleId = { envelope: 'spOver', reverse: 'spReverseGuard', side: 'spChordSide' };
+  const retainedCounterexamples = new Set();
   for (const item of cases) {
     runtime.setChecked('spOver', true);
     runtime.setChecked('spReverseGuard', true);
@@ -604,6 +640,13 @@ for (const [name, data] of Object.entries(runtime.examples)) {
     }
     runtime.setChecked(toggleId[item.guard], false);
     const disabled = c.computeBeamOnlySP(item.points);
+    const audit = c.sc2GuardTriggerAudit(item.points, disabled, item.focusInterval);
+    if (audit[item.guard].triggered) {
+      for (const other of ['envelope', 'reverse', 'side'].filter(guard => guard !== item.guard)) {
+        assert.ok(!audit[other].triggered, item.key + ': omitted-guard artifact also triggers ' + other);
+      }
+      retainedCounterexamples.add(item.guard);
+    }
     const yValues = item.points.map(point => point.y);
     const yRange = Math.max(...yValues) - Math.min(...yValues) || 1;
     let difference = 0;
@@ -612,6 +655,8 @@ for (const [name, data] of Object.entries(runtime.examples)) {
     }
     assert.ok(difference > 1e-3, `${item.key}: guard comparison is not visually distinct`);
   }
+  assert.deepStrictEqual(Array.from(retainedCounterexamples).sort(), ['envelope', 'reverse', 'side'],
+    'the fixed examples do not witness nonredundancy of all three guards');
   runtime.setChecked('spOver', true);
   runtime.setChecked('spReverseGuard', true);
   runtime.setChecked('spChordSide', true);
@@ -717,6 +762,11 @@ for (const [name, data] of Object.entries(runtime.examples)) {
 // interpolation error against functions that are hidden from construction.
 {
   const knownCases = Array.from(c.knownBenchmarkCases());
+  assert.strictEqual(c.manuscriptBenchmarkSettings().knownEvaluationSamples, 12001,
+    'known-function reference-grid count');
+  assert.strictEqual(c.activationValidationSettings().knownEvaluationSamples,
+    c.manuscriptBenchmarkSettings().knownEvaluationSamples,
+    'activation validation and known-function benchmark must share the reference-grid count');
   assert.deepStrictEqual(knownCases.map(item => item.key), [
     'smoothWave',
     'smoothArc',
@@ -743,6 +793,13 @@ for (const [name, data] of Object.entries(runtime.examples)) {
       }
     }
   }
+  const quadraturePoints = Array.from(c.knownBenchmarkPoints('monotoneSigmoid', 30, 'nonuniform'), point => ({ x: point.x, y: point.y }));
+  runtime.setPoints(quadraturePoints);
+  const quadratureCurve = c.computeMethod('cubic', quadraturePoints);
+  const coarseErrorSampling = c.knownBenchmarkErrors('monotoneSigmoid', quadraturePoints, quadratureCurve, 1001);
+  const fineErrorSampling = c.knownBenchmarkErrors('monotoneSigmoid', quadraturePoints, quadratureCurve, 4001);
+  near(coarseErrorSampling.e2, fineErrorSampling.e2, 1e-14,
+    'known-function e2 is independent of the eInf sampling grid under fixed normalization');
   near(c.knownBenchmarkValue('smoothPlateaus', 0.1), 0, 1e-15, 'known plateau lower level');
   near(c.knownBenchmarkValue('smoothPlateaus', 0.45), 1, 1e-15, 'known plateau upper level');
   near(c.knownBenchmarkValue('smoothPlateaus', 0.85), 0.35, 1e-15, 'known plateau final level');

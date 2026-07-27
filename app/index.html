@@ -260,7 +260,7 @@
         <summary id="spSummary">CD-HBEP (core formulation)</summary>
         <div class="details-body">
           <div class="formula">Hermite beam: the input contains only (x,y), and the slopes θ are computed internally.<br>
-          CD-HBEP projects the unconstrained Hermite beam slope θB onto a finite feasible set. Exact interval certification activates the bounds. Bezier control values define the envelope constraints. A reverse-motion amount test activates the sharp Hermite slope box, with a wider automatic threshold for isolated shallow reversals.<br>
+          CD-HBEP projects the unconstrained Hermite beam slope θB onto a finite feasible set. Exact interval certification activates the bounds. Bezier control values define the envelope constraints. An excess-total-variation test activates the sharp Hermite slope box, with a wider automatic threshold for isolated shallow reversals.<br>
           min 1/2(θ-θB)<sup>T</sup>H<sub>B</sub>(θ-θB), θ∈F<sub>A</sub>. The feasible slope box F<sub>A</sub> contains the activated bounds.</div>
 
           <div class="mini">CD-HBEP applies the same twelve fixed activation constants to every data set and requires no case-specific or user tuning. The controls below expose those constants for inspection and reproducibility; the default values are the manuscript settings.</div>
@@ -1331,9 +1331,9 @@ function escapeHtml(s){ return String(s).replace(/[&<>"']/g, ch => ({'&':'&amp;'
 
 // ---------- Plotting, metrics, and recomputation ----------
 const LINE_DASHES = {
-  linear: [1,0], cubic: [9,3], hanGuo: [5,1.8,5,1.8,5,1.8,5,1.8,1,1.8,1,1.8,1,1.8,1,1.8], pchip: [1.2,2.4], hyman: [10,3,2,3],
-  dehCubic: [5,1.8,5,1.8,1,1.8,1,1.8],
-  akima: [2,3], makima: [5,1.8,5,1.8,5,1.8,1,1.8,1,1.8,1,1.8],
+  linear: [1,0], cubic: [9,3], hanGuo: [9,3,1.2,3,1.2,3,1.2,3], pchip: [1.2,2.4], hyman: [9,3,1.2,3],
+  dehCubic: [9,3,9,3,1.2,3],
+  akima: [2,3], makima: [9,3,1.2,3,1.2,3],
   thesisFEM: [6,2], beamSP: [1,0]
 };
 function methodLineDash(key){ return LINE_DASHES[key] || [1,0]; }
@@ -1602,6 +1602,7 @@ function activationParameterDefinitions(){
 function activationReferenceConfiguration(){
   return Object.fromEntries(ACTIVATION_PARAMETER_DEFINITIONS.map(item=>[item.key,item.reference]));
 }
+const KNOWN_ERROR_EVALUATION_SAMPLES=12001;
 const ACTIVATION_VALIDATION_SETTINGS=Object.freeze({
   sobolSeed:20250317,
   globalCandidates:1024,
@@ -1616,7 +1617,7 @@ const ACTIVATION_VALIDATION_SETTINGS=Object.freeze({
   holdoutRandomSeed:271828182,
   holdoutRandomCases:500,
   holdoutKnownSizes:Object.freeze([45,90]),
-  knownEvaluationSamples:2001,
+  knownEvaluationSamples:KNOWN_ERROR_EVALUATION_SAMPLES,
   metricSamples:300,
   dominanceRelativeTolerance:0.01,
   certificateTolerance:1e-9
@@ -1726,33 +1727,36 @@ function sc2IntervalTol(points,e,opts){
   return base;
 }
 function sc2ReverseMotion(points, theta, e, opts){
-  // Return the integrated amount of motion opposite to the secant direction.
-  // This is A_rev,e = integral max(0, -sigma_e S'_e(x)) dx.
+  // Return one half of the total variation beyond the endpoint variation:
+  // A_rev,e = 0.5 * [integral |S'_e(x)| dx - |y_{e+1}-y_e|]_+.
+  // For a nonzero secant this equals the integrated motion opposite to the
+  // secant direction. For an exact-flat interval it is half the total
+  // variation and is positive precisely when the segment is nonconstant.
   // For a cubic Hermite segment, S'_e is quadratic, so the derivative roots
   // split the interval into subintervals on which the sign of S'_e is fixed.
-  const cache=opts._sc2Cache||sc2PrepareData(points), h=cache.h[e], delta=cache.delta[e];
+  const cache=opts._sc2Cache||sc2PrepareData(points), delta=cache.delta[e];
   const sgn=signedNonzero(delta);
-  if (!sgn) return {amount:0,t:0,maxReverseSlope:0};
   const cuts=[0,1,...derivativeRootCandidates(points,theta,e)]
     .filter(t=>Number.isFinite(t) && t>=-1e-12 && t<=1+1e-12)
     .map(t=>Math.min(1,Math.max(0,t)))
     .sort((a,b)=>a-b);
   const uniq=[];
   for(const t of cuts){ if(!uniq.length || Math.abs(t-uniq[uniq.length-1])>1e-9) uniq.push(t); }
-  let amount=0, tBest=0, segBest=0, maxReverseSlope=0;
+  let totalVariation=0, tBest=0, segBest=0, maxReverseSlope=0;
   for(let k=0;k<uniq.length-1;k++){
     const a=uniq[k], b=uniq[k+1];
     if (b-a<1e-10) continue;
     const mid=0.5*(a+b);
-    const signedDer=sgn*derivativeValue(points,theta,e,mid);
-    if (signedDer < 0){
-      const va=valueAtInterval(points,theta,e,a);
-      const vb=valueAtInterval(points,theta,e,b);
-      const revAmount=Math.max(0, -sgn*(vb-va));
-      amount += revAmount;
-      if (revAmount>segBest){ segBest=revAmount; tBest=mid; }
-    }
+    const va=valueAtInterval(points,theta,e,a);
+    const vb=valueAtInterval(points,theta,e,b);
+    const segmentChange=vb-va;
+    const segmentVariation=Math.abs(segmentChange);
+    totalVariation += segmentVariation;
+    const diagnosticAmount=sgn ? Math.max(0,-sgn*segmentChange) : segmentVariation;
+    if (diagnosticAmount>segBest){ segBest=diagnosticAmount; tBest=mid; }
   }
+  const endpointVariation=Math.abs(points[e+1].y-points[e].y);
+  const amount=Math.max(0,0.5*(totalVariation-endpointVariation));
   const check=[...uniq];
   const c0=hermiteSecondCoeff(points,e,0), c1=hermiteSecondCoeff(points,e,1);
   const s0=c0.a*theta[c0.i]+c0.b*theta[c0.j]+c0.c;
@@ -1761,8 +1765,11 @@ function sc2ReverseMotion(points, theta, e, opts){
     const tv=-s0/(s1-s0);
     if (tv>1e-10 && tv<1-1e-10) check.push(tv);
   }
-  for(const t of check){ maxReverseSlope=Math.max(maxReverseSlope, Math.max(0,-sgn*derivativeValue(points,theta,e,t))); }
-  return {amount,t:tBest,maxReverseSlope};
+  for(const t of check){
+    const slope=derivativeValue(points,theta,e,t);
+    maxReverseSlope=Math.max(maxReverseSlope,sgn?Math.max(0,-sgn*slope):Math.abs(slope));
+  }
+  return {amount,t:tBest,maxReverseSlope,totalVariation,endpointVariation};
 }
 function sc2ActivationThreshold(points,e,opts,kind){
   // Activate hard interval constraints only when a certified violation is
@@ -2033,7 +2040,7 @@ function renderAutoParams(){
     const sideUpper=sideLocal>0?Math.max(1,1/(3*sideLocal)):Infinity;
     const factorNote=sideFactor>analyticalSideFactor+Number.EPSILON?` (rounding-safe applied factor ${fmt(sideFactor,5)})`:'';
     html += `<div class="mini"><b>Chord-side feasibility.</b> The common factor is λ*=${fmt(analyticalSideFactor,5)}${factorNote}, with analytical upper bound ${Number.isFinite(sideUpper)?fmt(sideUpper,5):'∞'}. ${relaxed.length ? `Enlarged interval slacks: ${relaxed.map(s=>`e${s.e}: ${fmt(s.nominal,4)}→${fmt(s.effective,4)}`).join('; ')}.` : 'No slack enlargement was necessary.'}</div>`;
-    html += `<div class="mini">Exact interval certification constructs the outer active sets. Bezier control values certify the envelope bounds. A material handle excursion activates the same bounds before a wide turn develops. The reverse-motion test activates the sharp Hermite slope box only when reverse motion exceeds the interval tolerance. A wider threshold leaves isolated shallow reversals rounded. The chord-side guard activates only when locally convex or concave data depart excessively toward the curvature side of the chord.</div>`;
+    html += `<div class="mini">Exact interval certification constructs the outer active sets. Bezier control values certify the envelope bounds. A material handle excursion activates the same bounds before a wide turn develops. The reverse-motion test measures total variation beyond the endpoint change and activates the sharp Hermite slope box only when half of that excess exceeds the interval tolerance. The definition also detects nonconstant motion on an exact-flat interval. A wider threshold leaves isolated shallow reversals rounded. The chord-side guard activates only when locally convex or concave data depart excessively toward the curvature side of the chord.</div>`;
     html += renderBars(info.thetaDelta,'dθ',COLORS.beamSP,0,null);
     if ($('showSpBounds').checked){
       html += '<div class="scrollbox" style="max-height:330px;margin-top:8px;"><table><thead><tr><th>i</th><th>x</th><th>θB beam</th><th>θ PCHIP</th><th>θ CD-HBEP</th><th>θ*−θB</th></tr></thead><tbody>';
@@ -2139,6 +2146,24 @@ function metricQuadraticUnitRoots(coefficients){
     .sort((a,b)=>a-b).filter((value,index,array)=>index===0 || value-array[index-1]>64*Number.EPSILON);
 }
 
+const GAUSS_LEGENDRE_16_T=Object.freeze([0.00529953250417503,0.0277124884633837,0.0671843988060841,0.122297795822499,0.191061877798678,0.270991611171386,0.359198224610371,0.452493745081181,0.547506254918819,0.640801775389629,0.729008388828614,0.808938122201322,0.877702204177501,0.932815601193916,0.972287511536616,0.994700467495825]);
+const GAUSS_LEGENDRE_16_W=Object.freeze([0.013576229705877,0.0311267619693239,0.0475792558412464,0.0623144856277669,0.0747979944082884,0.0845782596975013,0.0913017075224618,0.0947253052275343,0.0947253052275343,0.0913017075224618,0.0845782596975013,0.0747979944082884,0.0623144856277669,0.0475792558412464,0.0311267619693239,0.013576229705877]);
+
+function gaussLegendre16SquaredError(points,truthFn,evalFn){
+  let integral=0;
+  for(let interval=0;interval<points.length-1;interval++){
+    const x0=points[interval].x, h=points[interval+1].x-x0;
+    if(!(h>0)) throw new Error('Gauss--Legendre error quadrature requires strictly increasing knots');
+    for(let q=0;q<GAUSS_LEGENDRE_16_T.length;q++){
+      const x=x0+h*GAUSS_LEGENDRE_16_T[q];
+      const error=evalFn(x)-truthFn(x);
+      if(!Number.isFinite(error)) throw new Error('nonfinite value in Gauss--Legendre error quadrature');
+      integral+=h*GAUSS_LEGENDRE_16_W[q]*error*error;
+    }
+  }
+  return integral;
+}
+
 function computeDetailedMetrics(points, xs, ys, slopes=null){
   // Comparative diagnostics for the manuscript.  These are soft metrics, not
   // activation criteria.  They intentionally combine shape-safety, chordal
@@ -2149,8 +2174,6 @@ function computeDetailedMetrics(points, xs, ys, slopes=null){
   const yScale=Math.max(yr,1e-12);
   const xSpan=Math.max(1e-12, points[points.length-1].x-points[0].x);
   const slopeVals = (slopes && slopes.length===points.length) ? slopes : fallbackSlopesFromSamples(points,xs,ys);
-  const gaussT=[0.00529953250417503,0.0277124884633837,0.0671843988060841,0.122297795822499,0.191061877798678,0.270991611171386,0.359198224610371,0.452493745081181,0.547506254918819,0.640801775389629,0.729008388828614,0.808938122201322,0.877702204177501,0.932815601193916,0.972287511536616,0.994700467495825];
-  const gaussW=[0.013576229705877,0.0311267619693239,0.0475792558412464,0.0623144856277669,0.0747979944082884,0.0845782596975013,0.0913017075224618,0.0947253052275343,0.0947253052275343,0.0913017075224618,0.0845782596975013,0.0747979944082884,0.0623144856277669,0.0475792558412464,0.0311267619693239,0.013576229705877];
   for(let e=0;e<points.length-1;e++){
     const x0=points[e].x, x1=points[e+1].x, y0=points[e].y, y1=points[e+1].y;
     const h=x1-x0;
@@ -2208,8 +2231,8 @@ function computeDetailedMetrics(points, xs, ys, slopes=null){
 
     // Normalized curve length has no general elementary antiderivative for a
     // cubic Hermite segment; a 16-point Gauss--Legendre rule evaluates it.
-    for(let q=0;q<gaussT.length;q++){
-      const t=gaussT[q], w=gaussW[q];
+    for(let q=0;q<GAUSS_LEGENDRE_16_T.length;q++){
+      const t=GAUSS_LEGENDRE_16_T[q], w=GAUSS_LEGENDRE_16_W[q];
       const der=hermiteDerivativeAt(points,slopeVals,e,t);
       const normalizedDerivative=der*xSpan/yScale;
       normalizedCurveLen += hNormalized*w*Math.sqrt(1+normalizedDerivative*normalizedDerivative);
@@ -2292,7 +2315,7 @@ const MANUSCRIPT_BENCHMARK_SETTINGS=Object.freeze({
   timingSizes:Object.freeze([10,100,1000,5000,10000,50000,100000]),
   timingRepeats:5,
   knownSizes:Object.freeze([10,30,60,100,200,400,800]),
-  knownEvaluationSamples:12001,
+  knownEvaluationSamples:KNOWN_ERROR_EVALUATION_SAMPLES,
   stabilitySeed:314159265,
   affineTrialsPerConfiguration:250,
   conditioningTrialsPerRatio:500,
@@ -2302,7 +2325,8 @@ const MANUSCRIPT_BENCHMARK_SETTINGS=Object.freeze({
   originShiftFactors:Object.freeze([-1e8,-1e4,1e4,1e8]),
   meshRatios:Object.freeze([1e4,1e8]),
   thresholdPerturbations:Object.freeze([1e-12,1e-10,1e-8,1e-6]),
-  metricQuadrature:'exact piecewise-polynomial integration for accumulated chord and monotonicity diagnostics; 16-point Gauss-Legendre rule for normalized curve length'
+  metricQuadrature:'exact piecewise-polynomial integration for accumulated chord and monotonicity diagnostics; 16-point Gauss-Legendre quadrature rule for normalized curve length',
+  knownErrorQuadrature:'16-point Gauss-Legendre quadrature rule on every interpolation interval for normalized RMS error'
 });
 function manuscriptBenchmarkSettings(){
   return {
@@ -2393,20 +2417,19 @@ function knownBenchmarkPoints(key,n,spacing='uniform'){
   }
   return points;
 }
-function knownBenchmarkErrors(key,points,curveOrEval,count=12001){
+function knownBenchmarkErrors(key,points,curveOrEval,count=KNOWN_ERROR_EVALUATION_SAMPLES){
   const definition=knownBenchmarkDefinition(key);
   const evalFn=typeof curveOrEval==='function' ? curveOrEval : curveOrEval.eval;
   const samples=Math.max(1001,Math.floor(count));
   const [a,b]=definition.domain;
-  let truthMin=Infinity,truthMax=-Infinity,maxError=0,errorIntegral=0,previousSquared=0;
+  let truthMin=Infinity,truthMax=-Infinity,maxError=0;
   for(let j=0;j<samples;j++){
     const x=a+(b-a)*j/(samples-1);
-    const truth=definition.evaluate(x), approx=evalFn(x), error=Math.abs(approx-truth), squared=error*error;
+    const truth=definition.evaluate(x), approx=evalFn(x), error=Math.abs(approx-truth);
     if(!Number.isFinite(approx)) throw new Error(`nonfinite known-function value for ${key}`);
     truthMin=Math.min(truthMin,truth); truthMax=Math.max(truthMax,truth); maxError=Math.max(maxError,error);
-    if(j>0) errorIntegral+=0.5*(previousSquared+squared)*(b-a)/(samples-1);
-    previousSquared=squared;
   }
+  const errorIntegral=gaussLegendre16SquaredError(points,definition.evaluate,evalFn);
   let hMax=0;
   for(let i=0;i<points.length-1;i++) hMax=Math.max(hMax,points[i+1].x-points[i].x);
   const scale=Math.max(truthMax-truthMin,1e-12);
@@ -2446,18 +2469,17 @@ function activationHoldoutPoints(key,n,spacing='uniform'){
   }
   return points;
 }
-function activationHoldoutErrors(key,points,curveOrEval,count=2001){
+function activationHoldoutErrors(key,points,curveOrEval,count=KNOWN_ERROR_EVALUATION_SAMPLES){
   const definition=activationHoldoutDefinition(key), evalFn=typeof curveOrEval==='function'?curveOrEval:curveOrEval.eval;
   const samples=Math.max(1001,Math.floor(count)), [a,b]=definition.domain;
-  let minimum=Infinity,maximum=-Infinity,maxError=0,errorIntegral=0,previousSquared=0;
+  let minimum=Infinity,maximum=-Infinity,maxError=0;
   for(let index=0;index<samples;index++){
     const x=a+(b-a)*index/(samples-1), truth=definition.evaluate(x), approximation=evalFn(x);
-    const error=Math.abs(approximation-truth), squared=error*error;
+    const error=Math.abs(approximation-truth);
     if(!Number.isFinite(approximation)) throw new Error(`nonfinite activation hold-out value for ${key}`);
     minimum=Math.min(minimum,truth); maximum=Math.max(maximum,truth); maxError=Math.max(maxError,error);
-    if(index>0) errorIntegral+=0.5*(previousSquared+squared)*(b-a)/(samples-1);
-    previousSquared=squared;
   }
+  const errorIntegral=gaussLegendre16SquaredError(points,definition.evaluate,evalFn);
   const scale=Math.max(maximum-minimum,1e-12);
   return {eInf:maxError/scale,e2:Math.sqrt(errorIntegral/(b-a))/scale};
 }
@@ -2555,7 +2577,7 @@ function randomBenchmarkPoints(rng, n, category='oscillatory', spacing='nonunifo
 // the Arc example comes from the manuscript's discrete data collection.
 const GUARD_MOTIVATION_DEFINITIONS=Object.freeze([
   Object.freeze({key:'envelope-flat-runs',guard:'envelope',label:'Separated flat runs',
-    source:'random',spacing:'nonuniform',category:'plateau',caseIndex:125,focusInterval:2}),
+    source:'random',spacing:'nonuniform',category:'plateau',caseIndex:21,focusInterval:9}),
   Object.freeze({key:'envelope-alternating',guard:'envelope',label:'Alternating values',
     source:'random',spacing:'nonuniform',category:'oscillatory',caseIndex:94,focusInterval:1}),
   Object.freeze({key:'reverse-largest-increase',guard:'reverse',label:'Trend with superposed wiggles',
@@ -3342,8 +3364,9 @@ function computeBeamOnlySP(points,runtimeOptions={}){
   const normalized=computeBeamOnlySPNormalized(affine.points,runtimeOptions);
   return sc2RestoreCurve(points,normalized,affine,runtimeOptions);
 }
-// The deterministic artifact exporter calls sc2CertificationAudit and
-// sc2ClosestActivationMargin for the manuscript stability experiment.
+// The deterministic artifact exporter calls sc2CertificationAudit,
+// sc2GuardTriggerAudit, and sc2ClosestActivationMargin for the manuscript
+// validation experiments.
 function sc2CertificationAudit(points,curve){
   const affine=sc2AffineNormalizeInput(points), normalizedPoints=affine.points;
   const theta=curve.slopes.map(value=>value/affine.slopeScale);
@@ -3370,6 +3393,28 @@ function sc2CertificationAudit(points,curve){
   }
   return {residualActivations:residual.addEnv.length+residual.addMono.length+residual.addSide.length,
     maxGuaranteeViolation};
+}
+function sc2GuardTriggerAudit(points,curve,e){
+  const affine=sc2AffineNormalizeInput(points), normalizedPoints=affine.points;
+  if(!(Number.isInteger(e)&&e>=0&&e<normalizedPoints.length-1)) throw new Error('guard trigger audit interval is out of range');
+  const theta=curve.slopes.map(value=>value/affine.slopeScale);
+  const opts=spOptions(normalizedPoints);
+  Object.defineProperty(opts,'_sc2Cache',{value:sc2PrepareData(normalizedPoints,true),enumerable:false});
+  const env=sc2EnvelopeViolation(normalizedPoints,theta,e,opts);
+  const envThreshold=sc2ActivationThreshold(normalizedPoints,e,opts,'envelope');
+  const handleThreshold=Math.max((opts.handleBandMultiplier??1.5)*sc2IntervalTol(normalizedPoints,e,opts),envThreshold);
+  const reverse=sc2ReverseMotion(normalizedPoints,theta,e,opts);
+  const reverseThreshold=sc2ActivationThreshold(normalizedPoints,e,opts,'reverse');
+  const side=sc2ChordSideDeviation(normalizedPoints,theta,e,opts);
+  return {
+    envelope:{
+      triggered:env.amount>envThreshold||(env.handleAmount||0)>handleThreshold,
+      value:Math.max(env.amount,(env.handleAmount||0)),
+      threshold:env.amount>envThreshold?envThreshold:handleThreshold
+    },
+    reverse:{triggered:reverse.amount>reverseThreshold,value:reverse.amount,threshold:reverseThreshold},
+    side:{triggered:side.amount>side.threshold,value:side.amount,threshold:side.threshold,classifierSign:side.sign}
+  };
 }
 function sc2ClosestActivationMargin(points,physicalTheta){
   const affine=sc2AffineNormalizeInput(points), normalizedPoints=affine.points;
