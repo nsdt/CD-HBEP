@@ -9,6 +9,8 @@ authors:
     email: nisidate@u-aizu.ac.jp
 repository-code: "https://github.com/nsdt/CD-HBEP"
 url: "https://nsdt.github.io/CD-HBEP/"
+version: 0.2.0
+doi: 10.5281/zenodo.21623497
 date-released: 2026-07-27
 license: MIT
 keywords:
