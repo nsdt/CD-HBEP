@@ -1,6 +1,6 @@
 {
   "title": "Certification-Driven Hermite Beam-Energy Projection",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A self-contained browser implementation and deterministic validation utilities for shape-controlled cubic Hermite interpolation by certification-driven beam-energy projection.",
   "creators": [
     {

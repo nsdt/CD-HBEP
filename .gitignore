@@ -1,7 +1,10 @@
 # Generated numerical output
 build/
 dist/
-results/
+results/*
+!results/artifacts.json
+!results/activation_parameter_validation.json
+!results/SHA256SUMS
 
 # Language and editor artifacts
 **/__pycache__/
