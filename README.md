@@ -1,6 +1,8 @@
 # Certification-Driven Hermite Beam-Energy Projection
 
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21405491.svg)](https://doi.org/10.5281/zenodo.21405491)
+**Current release (v0.2.0):** [![Zenodo DOI for v0.2.0](https://zenodo.org/badge/DOI/10.5281/zenodo.21623497.svg)](https://doi.org/10.5281/zenodo.21623497)
+
+**All archived releases:** [![Zenodo concept DOI for all versions](https://zenodo.org/badge/DOI/10.5281/zenodo.21405491.svg)](https://doi.org/10.5281/zenodo.21405491)
 
 Certification-Driven Hermite Beam-Energy Projection (CD-HBEP) is a value-only method for shape-controlled cubic Hermite interpolation. It begins with the natural-cubic beam-energy minimizer and activates finite local slope bounds only when exact interval tests detect a specified geometric departure.
 
@@ -67,7 +69,15 @@ The manuscript source, supplied reference PDFs, provenance archives, and journal
 
 ## Citation
 
-Citation metadata are provided in [`CITATION.cff`](CITATION.cff). Release `v0.2.0`, which accompanies the submitted manuscript, is archived on Zenodo under the version-specific DOI [10.5281/zenodo.21623497](https://doi.org/10.5281/zenodo.21623497). Cite this version-specific DOI when reproducing the reported results. The preceding `v0.1.0` release remains available under DOI [10.5281/zenodo.21405492](https://doi.org/10.5281/zenodo.21405492). The badge at the top of this page refers to the concept DOI, which represents all archived releases.
+Citation metadata are provided in [`CITATION.cff`](CITATION.cff). Zenodo assigns a version-specific DOI to each release and a concept DOI to the complete version family.
+
+| Scope | DOI | Citation purpose |
+| --- | --- | --- |
+| Current release `v0.2.0` | [10.5281/zenodo.21623497](https://doi.org/10.5281/zenodo.21623497) | Reproduce or cite the results reported with the current release. |
+| Previous release `v0.1.0` | [10.5281/zenodo.21405492](https://doi.org/10.5281/zenodo.21405492) | Refer specifically to the preceding release. |
+| All archived releases | [10.5281/zenodo.21405491](https://doi.org/10.5281/zenodo.21405491) | Refer to CD-HBEP independently of a version; this concept DOI resolves to the latest archived release. |
+
+For reproducibility, cite the applicable version-specific DOI rather than the concept DOI.
 
 The accompanying article is titled *A Certification-Driven Beam-Energy Projection Algorithm for Shape-Controlled Cubic Hermite Interpolation*. Its journal citation will be added after publication.
 
