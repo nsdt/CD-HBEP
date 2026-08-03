@@ -158,6 +158,165 @@ for (const [name, data] of Object.entries(runtime.examples)) {
   for (let i = 0; i < n; i++) near(beamSlopes[i], naturalSlopes[i], 2e-12, `pure beam/natural slope ${i}`);
 }
 
+// Beam-Hessian structure: selected inverse, checkerboard density, conditional
+// distance decay, and mesh-independent conditioning after equilibration.
+{
+  const meshes = {
+    uniform: [1, 1, 1, 1, 1, 1],
+    nonuniform: [0.2, 1.7, 0.05, 3.2, 0.8, 2.1],
+    extreme: [1e-4, 1, 1e4, 1e-2, 1e2, 1e-1],
+  };
+
+  const beamMatrix = h => {
+    const n = h.length + 1;
+    const diag = Array(n).fill(0), off = Array(n - 1);
+    for (let i = 0; i < h.length; i++) {
+      diag[i] += 4 / h[i];
+      diag[i + 1] += 4 / h[i];
+      off[i] = 2 / h[i];
+    }
+    const matrix = Array.from({ length: n }, () => Array(n).fill(0));
+    for (let i = 0; i < n; i++) matrix[i][i] = diag[i];
+    for (let i = 0; i < n - 1; i++) matrix[i][i + 1] = matrix[i + 1][i] = off[i];
+    return { diag, off, matrix };
+  };
+  const inverseByDenseSolve = matrix => {
+    const n = matrix.length;
+    const inverse = Array.from({ length: n }, () => Array(n).fill(0));
+    for (let j = 0; j < n; j++) {
+      const rhs = Array(n).fill(0); rhs[j] = 1;
+      const column = c.solveLinear(matrix.map(row => row.slice()), rhs);
+      for (let i = 0; i < n; i++) inverse[i][j] = column[i];
+    }
+    return inverse;
+  };
+  const selectedInverse = (diag, off) => {
+    const n = diag.length, pivots = Array(n), multipliers = Array(n - 1);
+    pivots[0] = diag[0];
+    for (let i = 0; i < n - 1; i++) {
+      multipliers[i] = off[i] / pivots[i];
+      pivots[i + 1] = diag[i + 1] - multipliers[i] * off[i];
+      assert.ok(pivots[i] > 0 && pivots[i + 1] > 0, `positive LDL pivot ${i}`);
+    }
+    const diagonal = Array(n), adjacent = Array(n - 1);
+    diagonal[n - 1] = 1 / pivots[n - 1];
+    for (let i = n - 2; i >= 0; i--) {
+      adjacent[i] = -multipliers[i] * diagonal[i + 1];
+      diagonal[i] = 1 / pivots[i] + multipliers[i] ** 2 * diagonal[i + 1];
+    }
+    return { diagonal, adjacent };
+  };
+  const principal = (matrix, rows, cols = rows) =>
+    rows.map(i => cols.map(j => matrix[i][j]));
+  const multiply = (left, right) => left.map(row =>
+    right[0].map((_, j) => row.reduce((sum, value, k) => sum + value * right[k][j], 0)));
+  const subtract = (left, right) => left.map((row, i) =>
+    row.map((value, j) => value - right[i][j]));
+  const symmetricEigenvalues = matrix => {
+    const a = matrix.map(row => row.slice()), n = a.length;
+    for (let iteration = 0; iteration < 200 * n * n; iteration++) {
+      let p = 0, q = 1, largest = 0;
+      for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
+        if (Math.abs(a[i][j]) > largest) { largest = Math.abs(a[i][j]); p = i; q = j; }
+      }
+      if (largest <= 2e-15) break;
+      const apq = a[p][q];
+      const tau = (a[q][q] - a[p][p]) / (2 * apq);
+      const t = (tau >= 0 ? 1 : -1) / (Math.abs(tau) + Math.sqrt(1 + tau * tau));
+      const cosine = 1 / Math.sqrt(1 + t * t), sine = t * cosine;
+      const app = a[p][p], aqq = a[q][q];
+      for (let k = 0; k < n; k++) if (k !== p && k !== q) {
+        const akp = a[k][p], akq = a[k][q];
+        a[k][p] = a[p][k] = cosine * akp - sine * akq;
+        a[k][q] = a[q][k] = sine * akp + cosine * akq;
+      }
+      a[p][p] = app - t * apq;
+      a[q][q] = aqq + t * apq;
+      a[p][q] = a[q][p] = 0;
+    }
+    return a.map((row, i) => row[i]).sort((x, y) => x - y);
+  };
+  const scaledNear = (actual, expected, tolerance, label) => {
+    const scale = Math.max(1, Math.abs(actual), Math.abs(expected));
+    assert.ok(Math.abs(actual - expected) <= tolerance * scale,
+      `${label}: ${actual} vs ${expected}`);
+  };
+
+  for (const [name, h] of Object.entries(meshes)) {
+    const { diag, off, matrix } = beamMatrix(h), n = diag.length;
+    const denseInverse = inverseByDenseSolve(matrix);
+    const selected = selectedInverse(diag, off);
+    for (let i = 0; i < n; i++) {
+      scaledNear(selected.diagonal[i], denseInverse[i][i], 2e-8,
+        `${name} selected inverse diagonal ${i}`);
+      if (i < n - 1) scaledNear(selected.adjacent[i], denseInverse[i][i + 1], 2e-8,
+        `${name} selected inverse adjacent ${i}`);
+    }
+    for (let j = 0; j < n; j++) {
+      const rhs = Array(n).fill(0); rhs[j] = 1;
+      const column = c.solveTridiagonalArrays(off.slice(), diag.slice(), off.slice(), rhs);
+      for (let i = 0; i < n; i++) {
+        scaledNear(column[i], denseInverse[i][j], 3e-8,
+          `${name} tridiagonal inverse ${i},${j}`);
+        assert.strictEqual(Math.sign(denseInverse[i][j]), (i + j) % 2 ? -1 : 1,
+          `${name} checkerboard inverse sign ${i},${j}`);
+        const ratio = Math.abs(denseInverse[i][j]) / denseInverse[j][j];
+        assert.ok(ratio <= 2 ** (-Math.abs(i - j)) * (1 + 2e-8) + 2e-12,
+          `${name} full inverse decay ${i},${j}: ${ratio}`);
+      }
+    }
+
+    const leftProduct = denseInverse[0][n - 2] * denseInverse[1][n - 1];
+    const rightProduct = denseInverse[0][n - 1] * denseInverse[1][n - 2];
+    scaledNear(leftProduct, rightProduct, 3e-8, `${name} semiseparable rank-one minor`);
+
+    const blockIndices = Array.from({ length: n - 2 }, (_, i) => i + 1);
+    const blockInverse = inverseByDenseSolve(principal(matrix, blockIndices));
+    for (let j = 0; j < blockInverse.length; j++) for (let i = 0; i < blockInverse.length; i++) {
+      const ratio = Math.abs(blockInverse[i][j]) / blockInverse[j][j];
+      assert.ok(ratio <= 2 ** (-Math.abs(i - j)) * (1 + 2e-8) + 2e-12,
+        `${name} principal-block inverse decay ${i},${j}: ${ratio}`);
+    }
+
+    const fixed = Math.floor(n / 2);
+    const response = denseInverse.map(row => row[fixed] / denseInverse[fixed][fixed]);
+    for (let i = 0; i < n; i++) {
+      assert.ok(Math.abs(response[i]) <= 2 ** (-Math.abs(i - fixed)) * (1 + 2e-8) + 2e-12,
+        `${name} single-equality response decay ${i}`);
+      if (i !== fixed) {
+        const residual = matrix[i].reduce((sum, value, k) => sum + value * response[k], 0);
+        assert.ok(Math.abs(residual) <= 2e-8 * Math.max(1, Math.abs(matrix[i][i])),
+          `${name} single-equality stationarity ${i}: ${residual}`);
+      }
+    }
+
+    const equilibrated = matrix.map((row, i) => row.map((value, j) =>
+      value / Math.sqrt(diag[i] * diag[j])));
+    const fullEigenvalues = symmetricEigenvalues(equilibrated);
+    near(fullEigenvalues[0], 0.5, 2e-10, `${name} equilibrated minimum eigenvalue`);
+    near(fullEigenvalues[n - 1], 1.5, 2e-10, `${name} equilibrated maximum eigenvalue`);
+    near(fullEigenvalues[n - 1] / fullEigenvalues[0], 3, 2e-9,
+      `${name} equilibrated condition number`);
+
+    const principalEigenvalues = symmetricEigenvalues(principal(equilibrated, blockIndices));
+    assert.ok(principalEigenvalues[0] >= 0.5 - 2e-10 &&
+      principalEigenvalues[principalEigenvalues.length - 1] <= 1.5 + 2e-10,
+    `${name} principal spectrum`);
+
+    const retained = Array.from({ length: n }, (_, i) => i).filter(i => i % 2 === 0);
+    const eliminated = Array.from({ length: n }, (_, i) => i).filter(i => i % 2 === 1);
+    const schur = subtract(principal(equilibrated, retained), multiply(
+      multiply(principal(equilibrated, retained, eliminated),
+        inverseByDenseSolve(principal(equilibrated, eliminated))),
+      principal(equilibrated, eliminated, retained),
+    ));
+    const schurEigenvalues = symmetricEigenvalues(schur);
+    assert.ok(schurEigenvalues[0] >= 0.5 - 2e-9 &&
+      schurEigenvalues[schurEigenvalues.length - 1] <= 1.5 + 2e-9,
+    `${name} Schur-complement spectrum`);
+  }
+}
+
 // The guaranteed fallback must solve mixed finite, one-sided, equality, and
 // unrestricted boxes when the fast sweep budget is exhausted deliberately.
 {
@@ -318,7 +477,7 @@ for (const [name, data] of Object.entries(runtime.examples)) {
   }
 
   const h = increasing[1].x - increasing[0].x;
-  const eta = 0.17, s = 3 * eta / h;
+  const eta = 0.17, s = 4 * eta / h;
   const convexSlopes = [delta - s, delta + s];
   const concaveSlopes = [delta + s, delta - s];
   for (let j = 0; j <= 200; j++) {
@@ -326,6 +485,10 @@ for (const [name, data] of Object.entries(runtime.examples)) {
     assert.ok(c.sc2ChordDeviationValue(increasing, convexSlopes, 0, t) >= -eta - 1e-12, `convex chord bound j=${j}`);
     assert.ok(c.sc2ChordDeviationValue(increasing, concaveSlopes, 0, t) <= eta + 1e-12, `concave chord bound j=${j}`);
   }
+  near(c.sc2ChordDeviationValue(increasing, convexSlopes, 0, 0.5), -eta, 1e-12,
+    'sharp convex chord bound at the midpoint');
+  near(c.sc2ChordDeviationValue(increasing, concaveSlopes, 0, 0.5), eta, 1e-12,
+    'sharp concave chord bound at the midpoint');
 
   const flat = [{ x: 0, y: 4 }, { x: 1, y: 4 }];
   const flatOpts = c.spOptions(flat);
@@ -880,10 +1043,10 @@ for (const [name, data] of Object.entries(runtime.examples)) {
   assert.ok(maxReflectionSlopeDifference <= 5e-10, `horizontal-reflection slope difference ${maxReflectionSlopeDifference}`);
   assert.ok(maxReflectionSlackDifference <= 5e-12, `horizontal-reflection slack difference ${maxReflectionSlackDifference}`);
   assert.ok(maxReflectionFactorDifference <= 5e-12, `horizontal-reflection factor difference ${maxReflectionFactorDifference}`);
-  assert.strictEqual(relaxedConstructions, 493, 'random constructions with chord-side relaxation');
-  assert.ok(maxAnalyticalSideFactor <= 5 / 3 + 1e-12, `analytical chord-side factor ${maxAnalyticalSideFactor}`);
-  near(maxAnalyticalSideFactor, 5 / 3, 1e-12, 'analytical chord-side factor reaches upper bound');
-  assert.ok(maxImplementationSideFactor <= 5 / 3 + 1e-12, `rounding-safe chord-side factor ${maxImplementationSideFactor}`);
+  assert.strictEqual(relaxedConstructions, 349, 'random constructions with chord-side relaxation');
+  assert.ok(maxAnalyticalSideFactor <= 5 / 4 + 1e-12, `analytical chord-side factor ${maxAnalyticalSideFactor}`);
+  near(maxAnalyticalSideFactor, 5 / 4, 1e-12, 'analytical chord-side factor reaches upper bound');
+  assert.ok(maxImplementationSideFactor <= 5 / 4 + 1e-12, `rounding-safe chord-side factor ${maxImplementationSideFactor}`);
   console.log(JSON.stringify({ cases, relaxedChordSideConstructions: relaxedConstructions,
     relaxedChordSideBounds: relaxed, maxAnalyticalSideFactor, maxImplementationSideFactor, maxActiveSetRounds: maxRounds,
     qpSolves, fallbackCalls, maxKktResidual, maxRawKktResidual, maxPrimalViolation,

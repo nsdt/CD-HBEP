@@ -4,6 +4,8 @@
 
 **All archived releases:** [![Zenodo concept DOI for all versions](https://zenodo.org/badge/DOI/10.5281/zenodo.21405491.svg)](https://doi.org/10.5281/zenodo.21405491)
 
+**Development status:** version 0.2.1 is an unreleased candidate. Its version-specific DOI will be added after archival.
+
 Certification-Driven Hermite Beam-Energy Projection (CD-HBEP) is a value-only method for shape-controlled cubic Hermite interpolation. It begins with the natural-cubic beam-energy minimizer and activates finite local slope bounds only when exact interval tests detect a specified geometric departure.
 
 **[Open the browser app](https://nsdt.github.io/CD-HBEP/)**
@@ -15,7 +17,7 @@ The app is a self-contained HTML file. It requires no build step, server, packag
 - Interactive comparison with natural cubic spline, Akima and modified Akima interpolation, Piecewise Cubic Hermite Interpolating Polynomial (PCHIP), Hyman-filtered spline, the final Dougherty--Edelman--Hyman cubic algorithm, Han--Guo minimal derivative oscillation interpolation, and the historical rod finite-element model.
 - Built-in exact-function and discrete-data examples.
 - Exact interval certification for the Bezier envelope, reverse motion, and chord-side departure.
-- A residual-certified tridiagonal box quadratic-programming solver with a polynomial fallback.
+- A residual-certified tridiagonal box quadratic-programming solver with a polynomial fallback; diagonal equilibration gives the beam Hessian exact condition number 3 on every positive mesh without changing the fallback complexity.
 - Deterministic random benchmarks, timing experiments, affine-invariance checks, and parameter-validation utilities.
 - All twelve fixed empirical activation constants are visible and editable for inspection. The published reference configuration applies the same values to every data set and requires no case-specific or user tuning.
 
