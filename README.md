@@ -1,10 +1,8 @@
 # Certification-Driven Hermite Beam-Energy Projection
 
-**Current release (v0.2.0):** [![Zenodo DOI for v0.2.0](https://zenodo.org/badge/DOI/10.5281/zenodo.21623497.svg)](https://doi.org/10.5281/zenodo.21623497)
+**Current release (v0.2.1):** [![Zenodo DOI for v0.2.1](https://zenodo.org/badge/DOI/10.5281/zenodo.21769604.svg)](https://doi.org/10.5281/zenodo.21769604)
 
 **All archived releases:** [![Zenodo concept DOI for all versions](https://zenodo.org/badge/DOI/10.5281/zenodo.21405491.svg)](https://doi.org/10.5281/zenodo.21405491)
-
-**Development status:** version 0.2.1 is an unreleased candidate. Its version-specific DOI will be added after archival.
 
 Certification-Driven Hermite Beam-Energy Projection (CD-HBEP) is a value-only method for shape-controlled cubic Hermite interpolation. It begins with the natural-cubic beam-energy minimizer and activates finite local slope bounds only when exact interval tests detect a specified geometric departure.
 
@@ -75,8 +73,9 @@ Citation metadata are provided in [`CITATION.cff`](CITATION.cff). Zenodo assigns
 
 | Scope | DOI | Citation purpose |
 | --- | --- | --- |
-| Current release `v0.2.0` | [10.5281/zenodo.21623497](https://doi.org/10.5281/zenodo.21623497) | Reproduce or cite the results reported with the current release. |
-| Previous release `v0.1.0` | [10.5281/zenodo.21405492](https://doi.org/10.5281/zenodo.21405492) | Refer specifically to the preceding release. |
+| Current release `v0.2.1` | [10.5281/zenodo.21769604](https://doi.org/10.5281/zenodo.21769604) | Reproduce or cite the results reported with the current release. |
+| Previous release `v0.2.0` | [10.5281/zenodo.21623497](https://doi.org/10.5281/zenodo.21623497) | Refer specifically to version 0.2.0. |
+| Initial release `v0.1.0` | [10.5281/zenodo.21405492](https://doi.org/10.5281/zenodo.21405492) | Refer specifically to version 0.1.0. |
 | All archived releases | [10.5281/zenodo.21405491](https://doi.org/10.5281/zenodo.21405491) | Refer to CD-HBEP independently of a version; this concept DOI resolves to the latest archived release. |
 
 For reproducibility, cite the applicable version-specific DOI rather than the concept DOI.
