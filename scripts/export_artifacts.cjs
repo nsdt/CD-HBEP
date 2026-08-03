@@ -163,7 +163,7 @@ const randomSideRelaxation = {
   maximumImplementationFactor: 1,
 };
 const randomReflectionRaw = newStabilityGroup('x-reflection-random',
-  'horizontal reflection (seeded benchmark)', 'affine invariance');
+  'horizontal reflection (seeded random benchmark)', 'affine invariance');
 
 function pushMetrics(target, metrics) {
   for (const metric of METRICS) target[metric].push(metrics[metric]);
@@ -217,6 +217,9 @@ function guardComparison(caseDefinition) {
   const enabledMetrics = finiteObject(c.metricForEval(points, enabled, 700), `${caseDefinition.key}/enabled`);
   const disabledMetrics = finiteObject(c.metricForEval(points, disabled, 700), `${caseDefinition.key}/disabled`);
   const interval = caseDefinition.focusInterval;
+  const disabledFocusAudit = c.sc2GuardTriggerAudit(points, disabled, interval);
+  const disabledTargetOnly = disabledFocusAudit[caseDefinition.guard].triggered
+    && otherGuards.every(otherGuard => !disabledFocusAudit[otherGuard].triggered);
   const start = Math.max(0, interval - 1);
   const finish = Math.min(points.length - 1, interval + 2);
   return {
@@ -226,6 +229,8 @@ function guardComparison(caseDefinition) {
     focus: { xMin: points[start].x, xMax: points[finish].x },
     maximumCurveDifference,
     xAtMaximum,
+    disabledFocusAudit,
+    disabledTargetOnly,
     metric: {
       key: metricKey,
       enabled: enabledMetrics[metricKey],
@@ -237,6 +242,11 @@ function guardComparison(caseDefinition) {
 }
 
 const guardMotivation = Array.from(c.guardMotivationCases(), guardComparison);
+for (const guard of ['envelope', 'reverse', 'side']) {
+  if (!guardMotivation.some(item => item.guard === guard && item.targetOnly && item.disabledTargetOnly)) {
+    throw new Error('No fixed nonredundancy witness remains for the ' + guard + ' guard');
+  }
+}
 runtime.setChecked('spOver', true);
 runtime.setChecked('spReverseGuard', true);
 runtime.setChecked('spChordSide', true);
@@ -718,7 +728,7 @@ const stabilityValidation = {
 runtime.setPoints(c.parseData(runtime.examples.smooth));
 const defaultOptions = c.spOptions();
 randomSideRelaxation.analyticalUpperBound = defaultOptions.sideLocalFraction > 0
-  ? Math.max(1, 1 / (3 * defaultOptions.sideLocalFraction)) : Infinity;
+  ? Math.max(1, 1 / (4 * defaultOptions.sideLocalFraction)) : Infinity;
 const cpuInfo = os.cpus();
 const timingEnvironment = {
   runtime: 'Node.js VM execution of app/index.html',
@@ -753,6 +763,7 @@ const artifact = {
     knownSizes,
     knownEvaluationSamples,
     metricQuadrature: manuscriptSettings.metricQuadrature,
+    knownErrorQuadrature: manuscriptSettings.knownErrorQuadrature,
     stabilitySeed: manuscriptSettings.stabilitySeed,
     defaultOptions,
   },
