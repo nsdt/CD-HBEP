@@ -69,18 +69,20 @@ The manuscript source, supplied reference PDFs, provenance archives, and journal
 
 ## Citation
 
-Citation metadata are provided in [`CITATION.cff`](CITATION.cff). Zenodo assigns a version-specific DOI to each release and a concept DOI to the complete version family.
+Citation metadata are provided in [`CITATION.cff`](CITATION.cff). For a general citation of CD-HBEP, use the concept DOI for the complete version family:
 
-| Scope | DOI | Citation purpose |
+**All archived releases:** [10.5281/zenodo.21405491](https://doi.org/10.5281/zenodo.21405491). This DOI resolves to the latest archived release.
+
+The version-specific software records and the accompanying preprint are listed below for reference.
+
+| Record | DOI | Citation purpose |
 | --- | --- | --- |
 | Current release `v0.2.1` | [10.5281/zenodo.21769604](https://doi.org/10.5281/zenodo.21769604) | Reproduce or cite the results reported with the current release. |
 | Previous release `v0.2.0` | [10.5281/zenodo.21623497](https://doi.org/10.5281/zenodo.21623497) | Refer specifically to version 0.2.0. |
 | Initial release `v0.1.0` | [10.5281/zenodo.21405492](https://doi.org/10.5281/zenodo.21405492) | Refer specifically to version 0.1.0. |
-| All archived releases | [10.5281/zenodo.21405491](https://doi.org/10.5281/zenodo.21405491) | Refer to CD-HBEP independently of a version; this concept DOI resolves to the latest archived release. |
+| Preprint (all versions) | [10.5281/zenodo.21833600](https://doi.org/10.5281/zenodo.21833600) | Cite the accompanying article; this DOI resolves to the latest archived preprint version. |
 
-For reproducibility, cite the applicable version-specific DOI rather than the concept DOI.
-
-The accompanying article is titled *A Certification-Driven Beam-Energy Projection Algorithm for Shape-Controlled Cubic Hermite Interpolation*. Its journal citation will be added after publication.
+For reproducibility, cite the applicable version-specific software DOI. When referring to the article itself, cite the preprint DOI; its journal citation will be added after publication.
 
 ## License
 
