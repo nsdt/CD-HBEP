@@ -29,7 +29,13 @@ cd CD-HBEP
 Start-Process .\app\index.html
 ```
 
-The online version is deployed from the same `app/` directory by GitHub Actions.
+The online version is built from `app/` and deployed by GitHub Actions. The deployment adds Cloudflare Web Analytics and a privacy notice to a separate copy of the HTML. The original `app/index.html`, its recorded hash, and the downloadable app are unchanged.
+
+### Online usage analytics
+
+The hosted app uses cookie-free Cloudflare Web Analytics to measure page visits and loading performance. Entered data and interpolation results are not sent to the analytics service. The analytics script loads only on `https://nsdt.github.io/CD-HBEP/`; local files, localhost, and other hosts do not load it. Controls and recalculations within the app are not counted as additional page views.
+
+To configure deployment, register `nsdt.github.io` in Cloudflare Web Analytics and store the public site token from its JavaScript snippet in the GitHub Actions repository variable `CLOUDFLARE_WEB_ANALYTICS_TOKEN`. This is a Web Analytics site token, not an API credential. The Pages workflow runs `node scripts/prepare_pages.cjs` to create `build/pages/` and fails before deployment if the token is missing or malformed. Re-run the workflow after changing the variable. Implementation details and collected metrics are described in the [Cloudflare documentation](https://developers.cloudflare.com/web-analytics/data-metrics/data-origin-and-collection/).
 
 ## Test and reproduce the numerical results
 

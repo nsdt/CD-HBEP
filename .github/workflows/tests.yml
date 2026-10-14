@@ -20,3 +20,5 @@ jobs:
           node-version: 20
       - name: Run numerical regression suite
         run: node tests/run_tests.cjs
+      - name: Verify hosted-only analytics
+        run: node tests/pages_analytics.cjs
